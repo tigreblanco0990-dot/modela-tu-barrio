@@ -6,100 +6,24 @@ import AdminScanner from './AdminScanner'
 
 /* ───────────── DATOS ───────────── */
 
-// Para poner las fotos: guarda cada imagen en /public/equipo/ con el
-// nombre indicado en "foto". Si la imagen no existe, se muestran las iniciales.
+// FOTOS: guarda las imágenes en /public/equipo/. Cada persona puede tener
+// una o varias fotos; si hay 2 o más, la tarjeta las cambia cada pocos segundos.
+// Ejemplo: fotos: ['/equipo/carlos-salazar.jpg', '/equipo/carlos-salazar-2.jpg']
+// Si una foto no existe, se muestran las iniciales sobre un fondo de color.
 const equipo = [
-  { nombre: 'Carlos Salazar', iniciales: 'CS', foto: '/equipo/carlos-salazar.jpg' },
-  { nombre: 'Luisanyer Navarro', iniciales: 'LN', foto: '/equipo/luisanyer-navarro.jpg' },
-  { nombre: 'Sarah Romero', iniciales: 'SR', foto: '/equipo/sarah-romero.jpg' },
-  { nombre: 'Jeyny Tejeda', iniciales: 'JT', foto: '/equipo/jeyny-tejeda.jpg' },
-  { nombre: 'Emmanuel Agüero', iniciales: 'EA', foto: '/equipo/emmanuel-aguero.jpg' },
-  { nombre: 'Aingeru Parla', iniciales: 'AP', foto: '/equipo/aingeru-parla.jpg' },
-  { nombre: 'Malvin Urbano', iniciales: 'MU', foto: '/equipo/malvin-urbano.jpg' },
+  { nombre: 'Carlos Salazar', iniciales: 'CS', fotos: ['/equipo/carlos-salazar.jpg'] },
+  { nombre: 'Luisanyer Navarro', iniciales: 'LN', fotos: ['/equipo/luisanyer-navarro.jpg'] },
+  { nombre: 'Sarah Romero', iniciales: 'SR', fotos: ['/equipo/sarah-romero.jpg'] },
+  { nombre: 'Jeyny Tejeda', iniciales: 'JT', fotos: ['/equipo/jeyny-tejeda.jpg'] },
+  { nombre: 'Emmanuel Agüero', iniciales: 'EA', fotos: ['/equipo/emmanuel-aguero.jpg'] },
+  { nombre: 'Aingeru Parla', iniciales: 'AP', fotos: ['/equipo/aingeru-parla.jpg'] },
+  { nombre: 'Malvin Urbano', iniciales: 'MU', fotos: ['/equipo/malvin-urbano.jpg'] },
 ]
 
-const barrios = [
-  'Pueblo Nuevo',
-  'Jeringa',
-  'Las Flores',
-  'Los Nova',
-  'Lava Pie',
-  'Canastica',
-  '5 de Abril',
-  'Moscú',
-  'Los Americanos',
-  'Barrio Nuevo',
-  'Barrio Puerto Rico',
-  'Villa Mercedes',
-]
-
-const fases = [
-  {
-    numero: 'I',
-    titulo: 'Diseño y organización',
-    detalle: 'Metodología, manuales, plataforma, identidad gráfica y mentores aliados.',
-    tiempo: '3 semanas',
-  },
-  {
-    numero: 'II',
-    titulo: 'Lanzamiento e inscripciones',
-    detalle: 'Evento oficial y acreditación de las Embajadas por sector.',
-    tiempo: '20 nov – 3 dic',
-  },
-  {
-    numero: 'III',
-    titulo: 'Campamento de formación',
-    detalle: 'Liderazgo, debate estilo MUN, investigación, oratoria, audiovisual y uso responsable de IA.',
-    tiempo: 'Sábados intensivos',
-  },
-  {
-    numero: 'IV',
-    titulo: 'Investigación en los barrios',
-    detalle: 'Entrevistas, fotografías, el Día del Barrio y retos semanales digitales.',
-    tiempo: '4 a 6 semanas',
-  },
-  {
-    numero: 'V',
-    titulo: 'Gran Asamblea Juvenil',
-    detalle: 'Presentación de expedientes, debate, negociación entre barrios y Agenda Juvenil.',
-    tiempo: '1 día completo',
-  },
-]
-
-const roles = [
-  { cantidad: 1, nombre: 'Coordinador/a', detalle: 'Lidera y da seguimiento al equipo.' },
-  { cantidad: 4, nombre: 'Investigación', detalle: 'Historia, archivos y entrevistas.' },
-  { cantidad: 4, nombre: 'Comunicación', detalle: 'Foto, video, podcast y redes.' },
-  { cantidad: 4, nombre: 'Proyectos', detalle: 'Necesidades, activos y propuestas.' },
-  { cantidad: 2, nombre: 'Voceros', detalle: 'Presentan y debaten en la Asamblea.' },
-]
-
-const entregables = [
-  {
-    titulo: 'Expediente del Barrio',
-    texto: 'Historia, memoria viva, diagnóstico, mapa de talentos y desafíos de tu comunidad.',
-  },
-  {
-    titulo: '“Mi Barrio en 5 Minutos”',
-    texto: 'Un cortometraje documental con entrevistas a quienes vieron nacer el barrio.',
-  },
-  {
-    titulo: 'Pasaporte de Mi Barrio',
-    texto: 'La carta de presentación visual de tu sector ante la Asamblea.',
-  },
-  {
-    titulo: 'Archivo fotográfico',
-    texto: 'Fotos históricas rescatadas y el efecto “Antes y Ahora”.',
-  },
-]
-
-const premios = [
-  'Mejor Embajada',
-  'Mejor Investigación Histórica y Comunitaria',
-  'Mejor Documental',
-  'Mejor Propuesta de Desarrollo',
-  'Mejor Orador/a',
-  'Premio Identidad Sancristobalense',
+const degradados = [
+  'linear-gradient(145deg,#E8472A,#F7B500)',
+  'linear-gradient(145deg,#0F2F44,#E8472A)',
+  'linear-gradient(145deg,#F7B500,#0F2F44)',
 ]
 
 // Viernes 27 de noviembre de 2026, 6:00 PM (hora de República Dominicana)
@@ -118,6 +42,62 @@ function calcularRestante() {
 
 const dos = (n: number) => String(n).padStart(2, '0')
 
+/* ───────────── TARJETA DEL EQUIPO ───────────── */
+
+type Persona = (typeof equipo)[number]
+
+function TarjetaEquipo({ persona, indice }: { persona: Persona; indice: number }) {
+  const [actual, setActual] = useState(0)
+  const [fallidas, setFallidas] = useState<string[]>([])
+
+  const buenas = persona.fotos.filter(f => !fallidas.includes(f))
+  // Sin fotos disponibles se rotan 3 fondos de color con las iniciales.
+  const total = buenas.length === 0 ? 3 : buenas.length
+
+  useEffect(() => {
+    if (total < 2) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    let intervalo: number | undefined
+    const inicio = window.setTimeout(() => {
+      intervalo = window.setInterval(() => setActual(a => (a + 1) % total), 3500)
+    }, indice * 500)
+
+    return () => {
+      window.clearTimeout(inicio)
+      window.clearInterval(intervalo)
+    }
+  }, [total, indice])
+
+  const visible = actual % total
+
+  return (
+    <figure className="tarjeta">
+      {buenas.length === 0
+        ? [0, 1, 2].map(k => (
+            <div
+              key={k}
+              className={`lamina lamina-letras ${k === visible ? 'activa' : ''}`}
+              style={{ background: degradados[(indice + k) % 3] }}
+            >
+              {persona.iniciales}
+            </div>
+          ))
+        : buenas.map((src, k) => (
+            <div key={src} className={`lamina ${k === visible ? 'activa' : ''}`}>
+              <img
+                src={src}
+                alt={persona.nombre}
+                loading="lazy"
+                onError={() => setFallidas(f => [...f, src])}
+              />
+            </div>
+          ))}
+      <figcaption className="tarjeta-nombre">{persona.nombre}</figcaption>
+    </figure>
+  )
+}
+
 /* ───────────── COMPONENTE ───────────── */
 
 function App() {
@@ -128,16 +108,7 @@ function App() {
   const [cargando, setCargando] = useState(false)
   const [qrImagen, setQrImagen] = useState('')
   const [mostrarAdmin, setMostrarAdmin] = useState(false)
-  const [personaActual, setPersonaActual] = useState(0)
   const [restante, setRestante] = useState(calcularRestante)
-
-  useEffect(() => {
-    const intervalo = window.setInterval(() => {
-      setPersonaActual(actual => (actual + 1) % equipo.length)
-    }, 4500)
-
-    return () => window.clearInterval(intervalo)
-  }, [])
 
   useEffect(() => {
     const reloj = window.setInterval(() => setRestante(calcularRestante()), 1000)
@@ -188,482 +159,146 @@ function App() {
     return <AdminScanner onVolver={() => setMostrarAdmin(false)} />
   }
 
+  const bloqueado = cargando || Boolean(qrImagen)
+
   return (
-    <main className="pagina">
-      {/* ───── BARRA ───── */}
-      <header className="barra">
+    <div className="pagina">
+      {/* ───── ENCABEZADO ───── */}
+      <header className="encabezado">
         <a className="marca" href="#inicio">
-          <img
-            className="marca-logo"
-            src="/logo-dreams-lab.png"
-            alt="Fundación Dreams Lab"
-          />
-          <span className="marca-texto">
-            MODELA <b>TU BARRIO</b>
-          </span>
+          <img src="/logo-dreams-lab.png" alt="Logo de Fundación Dreams Lab" />
         </a>
 
-        <nav className="navegacion">
-          <a href="#proyecto">El proyecto</a>
-          <a href="#ruta">La ruta</a>
-          <a href="#barrios">Los barrios</a>
-          <a href="#equipo">El equipo</a>
+        <nav className="menu" aria-label="Principal">
+          <a href="#que-es">¿Qué es Modela Tu Barrio?</a>
+          <a href="#equipo">Equipo organizador</a>
           <a href="#inscripcion">Inscripción</a>
-          <button
-            className="enlace-admin"
-            onClick={() => setMostrarAdmin(true)}
-          >
-            Administración
-          </button>
         </nav>
-
-        <a className="boton boton-pequeno" href="#inscripcion">
-          Participar ↗
-        </a>
       </header>
 
       {/* ───── PORTADA ───── */}
-      <section className="portada" id="inicio">
-        <div className="portada-brillo" aria-hidden="true" />
-
-        <div className="portada-contenido">
-          <div className="etiqueta">
-            <i /> JUVENTUD · IDENTIDAD · COMUNIDAD
-          </div>
-
-          <p className="fundacion">
-            UNA INICIATIVA DE FUNDACIÓN DREAMS LAB
-          </p>
-
-          <h1>
-            Tu barrio.<br />
-            Tus ideas.<br />
-            <span>Tu futuro.</span>
-          </h1>
-
-          <p className="descripcion">
-            Jóvenes de 15 a 25 años que investigan, representan y
-            proponen. Cada barrio de San Cristóbal tendrá su
-            Embajada para contar su historia y diseñar su futuro.
-          </p>
-
-          <div className="portada-acciones">
-            <a className="boton" href="#inscripcion">
-              Quiero participar ↗
-            </a>
-            <a className="boton boton-borde" href="#ruta">
-              Ver la ruta
-            </a>
-          </div>
-
-          <p className="nota">San Cristóbal, República Dominicana</p>
-        </div>
-
-        <div className="grafico">
-          <div className="grafico-orbita" aria-hidden="true" />
+      <main className="portada" id="inicio">
+        <div className="intro" id="que-es">
           <img
-            className="grafico-logo"
-            src="/logo-dreams-lab.png"
-            alt="Logo de Fundación Dreams Lab"
+            className="logo-mtb"
+            src="/logo-modela-tu-barrio.png"
+            alt="Logo de Modela Tu Barrio"
           />
-
-          <div className="cuenta">
-            <span className="cuenta-titulo">
-              {restante.terminado ? 'EL LANZAMIENTO YA OCURRIÓ' : 'LANZAMIENTO OFICIAL EN'}
-            </span>
-
-            {!restante.terminado && (
-              <div className="cuenta-cifras">
-                <div><strong>{dos(restante.dias)}</strong><small>días</small></div>
-                <div><strong>{dos(restante.horas)}</strong><small>horas</small></div>
-                <div><strong>{dos(restante.minutos)}</strong><small>min</small></div>
-                <div><strong>{dos(restante.segundos)}</strong><small>seg</small></div>
-              </div>
-            )}
-
-            <span className="cuenta-fecha">
-              Viernes 27 de noviembre · 6:00 PM
-            </span>
-          </div>
+          <h1 className="definicion">
+            Modela Tu Barrio es una iniciativa de la Fundación Dreams Lab
+            para jóvenes de San Cristóbal. Cada barrio debe formar su
+            Embajada (Equipo) para investigar su historia, conocer sus
+            necesidades y proponer soluciones desde su propia comunidad.
+          </h1>
         </div>
 
-        <div className="franja">
-          <div className="franja-pista">
-            {[0, 1].map(vuelta => (
-              <span key={vuelta}>
-                HISTORIA ✳ IDENTIDAD ✳ LIDERAZGO JUVENIL ✳ MEMORIA VIVA ✳ FUTURO ✳{' '}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ───── QUÉ ES ───── */}
-      <section className="manifiesto" id="proyecto">
-        <div>
-          <span className="sobrelinea">¿QUÉ ES MODELA TU BARRIO?</span>
-          <h2>
-            Un Modelo de Naciones Unidas, pero <em>de barrios.</em>
-          </h2>
-        </div>
-
-        <div className="manifiesto-texto">
-          <p>
-            En lugar de representar países, las delegaciones juveniles
-            representan con orgullo los barrios y comunidades de
-            San Cristóbal. Cada barrio conforma una <strong>embajada</strong>.
-          </p>
-          <p>
-            Los participantes se convierten en <strong>Embajadores de sus
-            Barrios</strong>: investigan su historia, recuperan fotografías y
-            testimonios, identifican necesidades y oportunidades, y presentan
-            propuestas concretas de desarrollo comunitario.
-          </p>
-        </div>
-      </section>
-
-      <section className="pilares">
-        <article className="pilar">
-          <span>01</span>
-          <div>
-            <h3>Conocer nuestra historia</h3>
-            <p>
-              Fundadores, familias emblemáticas, tradiciones y la
-              memoria que hoy viven los adultos mayores.
-            </p>
-          </div>
-        </article>
-
-        <article className="pilar">
-          <span>02</span>
-          <div>
-            <h3>Entender nuestro presente</h3>
-            <p>
-              Mapear talentos, activos, servicios y las necesidades
-              prioritarias de cada comunidad.
-            </p>
-          </div>
-        </article>
-
-        <article className="pilar">
-          <span>03</span>
-          <div>
-            <h3>Diseñar nuestro futuro</h3>
-            <p>
-              Convertir las ideas de la juventud en proyectos y
-              propuestas, incluso junto a otros barrios.
-            </p>
-          </div>
-        </article>
-      </section>
-
-      {/* ───── CIFRAS ───── */}
-      <section className="alcance">
-        <div className="alcance-titulo">
-          <span className="sobrelinea claro">PLAN PILOTO · PRIMERA EDICIÓN</span>
-          <h2>El cambio empieza desde nuestros barrios.</h2>
-        </div>
-
-        <div className="alcance-dato">
-          <strong>12</strong>
-          <span>barrios emblemáticos de San Cristóbal</span>
-        </div>
-
-        <div className="alcance-dato">
-          <strong>15</strong>
-          <span>Embajadores por cada barrio</span>
-        </div>
-
-        <div className="alcance-dato">
-          <strong>180</strong>
-          <span>jóvenes participantes en total</span>
-        </div>
-      </section>
-
-      {/* ───── RUTA ───── */}
-      <section className="ruta" id="ruta">
-        <div className="seccion-cabecera">
-          <div>
-            <span className="sobrelinea">CÓMO FUNCIONA</span>
-            <h2>
-              Cinco fases, <em>un solo recorrido.</em>
-            </h2>
-          </div>
-          <p>
-            Desde la formación hasta la gran asamblea donde los jóvenes
-            entregan su Agenda a las autoridades.
-          </p>
-        </div>
-
-        <ol className="fases">
-          {fases.map(fase => (
-            <li className="fase" key={fase.numero}>
-              <span className="fase-numero">{fase.numero}</span>
-              <h3>{fase.titulo}</h3>
-              <p>{fase.detalle}</p>
-              <small>{fase.tiempo}</small>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* ───── EMBAJADA ───── */}
-      <section className="embajada">
-        <div className="embajada-intro">
-          <span className="sobrelinea claro">TU EMBAJADA</span>
-          <h2>
-            15 jóvenes. <em>Un barrio.</em>
-          </h2>
-          <p>
-            Cada Embajada Comunitaria se organiza en equipos con roles
-            claros, y juntos construyen todo lo que el barrio presentará.
+        <div className="lanzamiento">
+          <p className="eslogan">
+            <span className="e1">Conocer nuestra historia.</span>
+            <span className="e2">Entender nuestro presente.</span>
+            <span className="e3">Diseñar nuestro futuro.</span>
           </p>
 
-          <ul className="entregables">
-            {entregables.map(item => (
-              <li key={item.titulo}>
-                <strong>{item.titulo}</strong>
-                <span>{item.texto}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+          <p className="invitacion">
+            {restante.terminado
+              ? '¡El lanzamiento oficial ya comenzó!'
+              : 'Conoce más acerca de nuestro proyecto el día oficial de lanzamiento en:'}
+          </p>
 
-        <div className="roles">
-          {roles.map(rol => (
-            <div className="rol" key={rol.nombre}>
-              <strong>{rol.cantidad}</strong>
-              <div>
-                <h3>{rol.nombre}</h3>
-                <p>{rol.detalle}</p>
-              </div>
+          {!restante.terminado && (
+            <div className="reloj" role="timer" aria-live="off">
+              <div className="unidad"><span className="cifra">{dos(restante.dias)}</span><span className="etiqueta">días</span></div>
+              <div className="unidad"><span className="cifra">{dos(restante.horas)}</span><span className="etiqueta">horas</span></div>
+              <div className="unidad"><span className="cifra">{dos(restante.minutos)}</span><span className="etiqueta">min</span></div>
+              <div className="unidad"><span className="cifra">{dos(restante.segundos)}</span><span className="etiqueta">seg</span></div>
             </div>
-          ))}
+          )}
+
+          <p className="fecha">Viernes 27 de noviembre · 6:00 PM · Villa Shantal</p>
         </div>
-      </section>
-
-      {/* ───── BARRIOS ───── */}
-      <section className="barrios-seccion" id="barrios">
-        <div className="seccion-cabecera">
-          <div>
-            <span className="sobrelinea">UNA IDENTIDAD, MUCHAS HISTORIAS</span>
-            <h2>
-              12 barrios.<br />
-              <em>Un mismo futuro.</em>
-            </h2>
-          </div>
-
-          <p>
-            Cada comunidad tiene una historia que contar, talentos
-            que mostrar y oportunidades que construir.
-          </p>
-        </div>
-
-        <div className="barrios-lista">
-          {barrios.map((barrio, index) => (
-            <div className="barrio-item" key={barrio}>
-              <span>{dos(index + 1)}</span>
-              {barrio}
-            </div>
-          ))}
-        </div>
-
-        <p className="nota-seccion">
-          Sectores del plan piloto de la primera edición.
-        </p>
-      </section>
-
-      {/* ───── PREMIOS ───── */}
-      <section className="premios">
-        <div className="premios-texto">
-          <span className="sobrelinea">RECONOCIMIENTOS</span>
-          <h2>
-            Aprender es lo central. <em>Ganar, un impulso.</em>
-          </h2>
-          <p>
-            Un jurado multidisciplinario evalúa a las Embajadas en la
-            Gran Plenaria. El barrio ganador recibe un impacto tangible:
-            el <strong>“Proyecto Dreams Lab para Mi Barrio”</strong>, con
-            el que se gestionan recursos para ejecutar una de sus propuestas.
-          </p>
-        </div>
-
-        <ul className="premios-lista">
-          {premios.map(premio => (
-            <li key={premio}>
-              <i>✳</i> {premio}
-            </li>
-          ))}
-        </ul>
-      </section>
+      </main>
 
       {/* ───── EQUIPO ───── */}
-      <section className="equipo-seccion" id="equipo">
-        <div className="equipo-intro">
-          <span className="sobrelinea">LAS PERSONAS DETRÁS DE LA IDEA</span>
-
-          <h2>
-            Un equipo que cree en el poder de <em>la juventud.</em>
-          </h2>
-
-          <p>Conoce al equipo organizador de MODELA TU BARRIO.</p>
-
-          <div className="equipo-controles">
-            <button
-              aria-label="Anterior"
-              onClick={() =>
-                setPersonaActual(
-                  (personaActual - 1 + equipo.length) % equipo.length
-                )
-              }
-            >
-              ←
-            </button>
-
-            <span>
-              {dos(personaActual + 1)} / {dos(equipo.length)}
-            </span>
-
-            <button
-              aria-label="Siguiente"
-              onClick={() =>
-                setPersonaActual((personaActual + 1) % equipo.length)
-              }
-            >
-              →
-            </button>
-          </div>
-
-          <div className="equipo-puntos">
-            {equipo.map((p, i) => (
-              <button
-                key={p.nombre}
-                aria-label={p.nombre}
-                className={i === personaActual ? 'activo' : ''}
-                onClick={() => setPersonaActual(i)}
-              />
-            ))}
-          </div>
+      <section className="equipo" id="equipo">
+        <div className="equipo-cabecera">
+          <h2>Las personas detrás de <span>Modela Tu Barrio</span></h2>
+          <p>
+            El equipo organizador del proyecto de <span>Modela Tu Barrio</span>{' '}
+            que le ha dado vida al mismo.
+          </p>
         </div>
 
-        <div className="persona-escenario">
-          {equipo.map((p, i) => (
-            <article
-              key={p.nombre}
-              className={`persona-card ${i === personaActual ? 'visible' : ''}`}
-              aria-hidden={i !== personaActual}
-            >
-              <div className="persona-foto">
-                <span className="persona-iniciales">{p.iniciales}</span>
-                <img
-                  src={p.foto}
-                  alt={p.nombre}
-                  loading="lazy"
-                  onError={e => {
-                    e.currentTarget.style.display = 'none'
-                  }}
-                />
-              </div>
-
-              <div className="persona-info">
-                <span>Equipo organizador</span>
-                <h3>{p.nombre}</h3>
-                <small>MODELA TU BARRIO · 2026</small>
-              </div>
-            </article>
+        <div className="rejilla">
+          {equipo.map((persona, i) => (
+            <TarjetaEquipo key={persona.nombre} persona={persona} indice={i} />
           ))}
         </div>
       </section>
 
       {/* ───── INSCRIPCIÓN ───── */}
       <section className="inscripcion" id="inscripcion">
-        <div className="inscripcion-texto">
-          <span className="sobrelinea claro">TU MOMENTO EMPIEZA AQUÍ</span>
-
+        <div>
           <h2>
-            Tu voz también puede transformar <em>tu comunidad.</em>
+            Inscríbete y forma parte de nuestro <span>lanzamiento oficial</span>
           </h2>
-
-          <p>
-            Postúlate para formar parte de MODELA TU BARRIO y representar
-            la historia, las ideas y el futuro de tu sector.
-          </p>
-
-          <ul className="inscripcion-datos">
-            <li><b>Quiénes:</b> jóvenes de 15 a 25 años de San Cristóbal</li>
-            <li><b>Inscripciones:</b> del 20 de noviembre al 3 de diciembre</li>
-            <li><b>Lanzamiento:</b> viernes 27 de noviembre, 6:00 PM</li>
-          </ul>
-
-          <div className="inscripcion-frase">
-            “Conocer nuestra historia. Entender nuestro presente.
-            Diseñar nuestro futuro.”
-          </div>
         </div>
 
-        <div className="tarjeta-formulario">
-          <div className="formulario-cabecera">
-            <span>01 / REGISTRO</span>
-            <span className="estado">● INSCRIPCIÓN EN LÍNEA</span>
-          </div>
-
-          <h3>¡Queremos conocerte!</h3>
-          <p className="formulario-descripcion">
-            Completa tus datos para iniciar tu inscripción.
-          </p>
-
+        <div className="formulario">
           <form onSubmit={registrarParticipante}>
             <div className="campo">
-              <label htmlFor="nombre">Nombre completo *</label>
+              <label htmlFor="nombre">
+                Nombre completo <span className="obligatorio" aria-hidden="true">*</span>
+              </label>
               <input
                 id="nombre"
                 type="text"
-                placeholder="Escribe tu nombre y apellido"
+                autoComplete="name"
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
                 required
-                disabled={cargando || Boolean(qrImagen)}
+                disabled={bloqueado}
               />
             </div>
 
             <div className="campo">
-              <label htmlFor="email">Correo electrónico *</label>
+              <label htmlFor="email">
+                Correo electrónico <span className="obligatorio" aria-hidden="true">*</span>
+              </label>
               <input
                 id="email"
                 type="email"
-                placeholder="tunombre@correo.com"
+                autoComplete="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                disabled={cargando || Boolean(qrImagen)}
+                disabled={bloqueado}
               />
             </div>
 
             <div className="campo">
               <label htmlFor="organizacion">
-                Institución a la que representas (opcional)
+                Institución a la que representas <small>(opcional)</small>
               </label>
               <input
                 id="organizacion"
                 type="text"
-                placeholder="Centro educativo u organización"
+                autoComplete="organization"
                 value={organizacion}
                 onChange={e => setOrganizacion(e.target.value)}
-                disabled={cargando || Boolean(qrImagen)}
+                disabled={bloqueado}
               />
             </div>
 
-            <button
-              className="boton boton-formulario"
-              type="submit"
-              disabled={cargando || Boolean(qrImagen)}
-            >
-              {cargando ? 'Registrando...' : 'Enviar mi inscripción'} ↗
+            <button className="boton" type="submit" disabled={bloqueado}>
+              {cargando ? 'Registrando…' : 'Inscribirme'}
             </button>
           </form>
 
           {mensaje && (
-            <p className="mensaje-formulario" role="status">
+            <p
+              className={`mensaje ${qrImagen ? 'mensaje-ok' : 'mensaje-error'}`}
+              role="status"
+            >
               {mensaje}
             </p>
           )}
@@ -672,65 +307,26 @@ function App() {
             <div className="resultado-qr">
               <h3>¡Tu inscripción está lista!</h3>
               <p>Guarda tu código QR y preséntalo al llegar.</p>
-
               <img src={qrImagen} alt="Código QR de inscripción" />
-
               <a
                 href={qrImagen}
                 download="mi-qr-modela-tu-barrio.png"
                 className="boton"
               >
-                Descargar mi QR ↓
+                Descargar mi QR
               </a>
             </div>
           )}
-
-          <p className="aviso-formulario">
-            Tus datos se utilizarán para gestionar tu inscripción.
-            Consulta el aviso de privacidad oficial de la organización.
-          </p>
         </div>
       </section>
 
-      {/* ───── CIERRE ───── */}
-      <section className="cierre">
-        <img
-          className="cierre-logo"
-          src="/logo-dreams-lab.png"
-          alt=""
-          aria-hidden="true"
-        />
-        <span className="sobrelinea claro">MODELA TU BARRIO</span>
-
-        <h2>
-          Tu barrio tiene mucho que <em>decir.</em>
-        </h2>
-
-        <a className="boton" href="#inscripcion">
-          Sé parte de la historia ↗
-        </a>
-      </section>
-
       <footer className="pie">
-        <a className="marca" href="#inicio">
-          <img
-            className="marca-logo"
-            src="/logo-dreams-lab.png"
-            alt="Fundación Dreams Lab"
-          />
-          <span className="marca-texto">
-            MODELA <b>TU BARRIO</b>
-          </span>
-        </a>
-
-        <p>
-          Conocer nuestra historia. Entender nuestro presente.
-          Diseñar nuestro futuro.
-        </p>
-
-        <span>© 2026 FUNDACIÓN DREAMS LAB</span>
+        <span>© 2026 Fundación Dreams Lab</span>
+        <button className="enlace-admin" onClick={() => setMostrarAdmin(true)}>
+          Administración
+        </button>
       </footer>
-    </main>
+    </div>
   )
 }
 
