@@ -1,6 +1,8 @@
 
 import { withSupabase } from "npm:@supabase/server@1";
 
+const CUENTA_AUTORIZADA = "d4b997a6-2267-47f0-b8d9-fbcb4fc68b9d";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -40,7 +42,6 @@ export default {
       }
 
       try {
-        // Identidad obtenida de la sesión autenticada.
         const userId = ctx.userClaims?.id;
 
         if (typeof userId !== "string") {
@@ -78,7 +79,6 @@ export default {
             ? deviceLabel.trim().slice(0, 80)
             : "Dispositivo sin nombre";
 
-        // Cliente administrativo: solo se utiliza en el servidor.
         const admin = ctx.supabaseAdmin;
 
         // 1. Comprobar que el operador sea administrador.
@@ -99,7 +99,7 @@ export default {
           }, 403);
         }
 
-        // 2. Comprobar que exista un evento activo.
+        // 2. Buscar el evento activo.
         const { data: evento, error: eventoError } =
           await admin
             .from("events")
@@ -132,35 +132,46 @@ export default {
           throw dispositivoError;
         }
 
-        // 4. Si es nuevo, registrarlo pendiente de aprobación.
+        // 4. Registrar dispositivos nuevos.
         if (!dispositivo) {
+          const esPropietario = userId === CUENTA_AUTORIZADA;
+
           const { error: registroError } = await admin
             .from("access_devices")
             .insert({
               user_id: userId,
               device_id: deviceId,
               device_label: label,
-              is_approved: false,
+              is_approved: esPropietario,
             });
 
           if (registroError) {
             throw registroError;
           }
 
+          if (!esPropietario) {
+            return respuesta({
+              success: false,
+              outcome: "pending_device",
+              message: "Dispositivo registrado. Está pendiente de aprobación.",
+            }, 403);
+          }
+
           return respuesta({
             success: false,
-            outcome: "pending_device",
-            message: "Dispositivo registrado. Está pendiente de aprobación.",
-          }, 403);
+            outcome: "device_registered",
+            message: "Dispositivo autorizado. Escanea nuevamente el código QR.",
+          });
         }
 
-        // 5. Evitar que otro operador utilice el dispositivo registrado.
+        // 5. Comprobar que el dispositivo pertenezca al operador.
         if (dispositivo.user_id !== userId) {
           return respuesta({
             error: "Este dispositivo pertenece a otro operador.",
           }, 403);
         }
 
+        // 6. Los dispositivos revocados nunca se autorizan automáticamente.
         if (dispositivo.revoked_at !== null) {
           return respuesta({
             success: false,
@@ -169,6 +180,7 @@ export default {
           }, 403);
         }
 
+        // 7. Comprobar aprobación.
         if (!dispositivo.is_approved) {
           return respuesta({
             success: false,
@@ -177,7 +189,7 @@ export default {
           }, 403);
         }
 
-        // 6. Actualizar el último uso del dispositivo.
+        // 8. Actualizar el último uso.
         const { error: actualizacionError } = await admin
           .from("access_devices")
           .update({ last_used_at: new Date().toISOString() })
@@ -187,10 +199,10 @@ export default {
           throw actualizacionError;
         }
 
-        // 7. Calcular el hash del QR.
+        // 9. Calcular el hash del QR.
         const tokenHash = await hashToken(token);
 
-        // 8. Validar la entrada mediante la función SQL existente.
+        // 10. Validar la entrada mediante la función SQL.
         const { data, error: validacionError } = await admin.rpc(
           "validate_and_check_in",
           {

@@ -1802,3 +1802,105 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.admin-request-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 20px;
+  background: #ec4e2c;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-device-request {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.admin-device-request .admin-attendee-info {
+  flex: 1;
+  min-width: 180px;
+}
+
+.admin-device-request .admin-attendee-info code {
+  display: block;
+  margin-top: 7px;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+  color: #777;
+}
+
+.admin-device-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-device-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-device-status.pending {
+  background: #fff2d9;
+  color: #986000;
+}
+
+.admin-device-status.approved {
+  background: #e3f5e9;
+  color: #237443;
+}
+
+.admin-device-status.revoked {
+  background: #fce8e5;
+  color: #b13a2a;
+}
+
+.admin-device-approve,
+.admin-device-reject {
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.admin-device-approve {
+  background: #ec4e2c;
+  color: white;
+}
+
+.admin-device-reject {
+  background: #f1f1f1;
+  color: #333;
+}
+
+.admin-device-approve:disabled,
+.admin-device-reject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .admin-device-request {
+    align-items: flex-start;
+  }
+
+  .admin-device-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
