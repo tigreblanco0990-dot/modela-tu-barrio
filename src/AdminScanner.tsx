@@ -125,36 +125,36 @@ export default function AdminScanner({
         )
 
         if (error) {
-  const respuestaError = (error as { context?: Response }).context
+          const respuestaError = (error as { context?: Response }).context
 
-  if (respuestaError) {
-    const detalle = await respuestaError
-      .clone()
-      .json()
-      .catch(() => null)
+          if (respuestaError) {
+            const detalle = await respuestaError
+              .clone()
+              .json()
+              .catch(() => null)
 
-    if (detalle && typeof detalle.outcome === 'string') {
-      setResultado({
-        success: detalle.success === true,
-        outcome: detalle.outcome,
-        message: detalle.message ?? 'Resultado de la validación.',
-        attendee_name: detalle.attendee_name ?? null,
-        entry_time: detalle.entry_time ?? null,
-      })
+            if (detalle && typeof detalle.outcome === 'string') {
+              setResultado({
+                success: detalle.success === true,
+                outcome: detalle.outcome,
+                message: detalle.message ?? 'Resultado de la validación.',
+                attendee_name: detalle.attendee_name ?? null,
+                entry_time: detalle.entry_time ?? null,
+              })
 
-      setMensaje('')
-      return
-    }
+              setMensaje('')
+              return
+            }
 
-    if (detalle && typeof detalle.error === 'string') {
-      throw new Error(detalle.error)
-    }
-  }
+            if (detalle && typeof detalle.error === 'string') {
+              throw new Error(detalle.error)
+            }
+          }
 
-  throw new Error(
-    'No se pudo contactar con el servidor. Comprueba tu conexión y tu sesión.',
-  )
-}
+          throw new Error(
+            'No se pudo contactar con el servidor. Comprueba tu conexión y tu sesión.',
+          )
+        }
 
         if (!data) {
           throw new Error('El servidor no devolvió ningún resultado.')
@@ -369,13 +369,28 @@ export default function AdminScanner({
                 )}
 
                 {resultado.entry_time && (
-                  <p>
-                    <strong>Hora de entrada:</strong>{' '}
-                    {new Date(resultado.entry_time).toLocaleString('es-DO', {
-                      dateStyle: 'short',
-                      timeStyle: 'medium',
-                    })}
-                  </p>
+                  <div className="admin-entry-datetime">
+                    <p>
+                      <strong>Fecha de entrada:</strong>{' '}
+                      {new Date(resultado.entry_time).toLocaleDateString('es-DO', {
+                        timeZone: 'America/Santo_Domingo',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })}
+                    </p>
+
+                    <p>
+                      <strong>Hora de entrada:</strong>{' '}
+                      {new Date(resultado.entry_time).toLocaleTimeString('es-DO', {
+                        timeZone: 'America/Santo_Domingo',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true,
+                      })}
+                    </p>
+                  </div>
                 )}
 
                 {escaneando && (
@@ -411,3 +426,4 @@ export default function AdminScanner({
     </main>
   )
 }
+
