@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import type { Session } from '@supabase/supabase-js'
+import * as XLSX from 'xlsx'
 import { supabase } from './lib/supabase'
 
 type CheckInResult = {
@@ -10,6 +11,12 @@ type CheckInResult = {
   message: string
   attendee_name: string | null
   entry_time: string | null
+}
+
+type Asistente = {
+  full_name: string
+  organization: string | null
+  checked_in_at: string
 }
 
 function obtenerDeviceId(): string {
@@ -37,6 +44,25 @@ function tituloResultado(outcome: string): string {
   return titulos[outcome] ?? 'Resultado de la validación'
 }
 
+function mostrarFecha(fecha: string): string {
+  return new Date(fecha).toLocaleDateString('es-DO', {
+    timeZone: 'America/Santo_Domingo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
+function mostrarHora(fecha: string): string {
+  return new Date(fecha).toLocaleTimeString('es-DO', {
+    timeZone: 'America/Santo_Domingo',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+}
+
 export default function AdminScanner({
   onVolver,
 }: {
@@ -52,10 +78,19 @@ export default function AdminScanner({
   const [mensaje, setMensaje] = useState('')
   const [resultado, setResultado] = useState<CheckInResult | null>(null)
 
+  // Estados del panel de asistentes
+  const [vista, setVista] = useState<'scanner' | 'asistentes'>('scanner')
+  const [asistentes, setAsistentes] = useState<Asistente[]>([])
+  const [cargandoAsistentes, setCargandoAsistentes] = useState(false)
+  const [errorAsistentes, setErrorAsistentes] = useState('')
+  const [busqueda, setBusqueda] = useState('')
+  const [actualizacionAsistentes, setActualizacionAsistentes] = useState(0)
+
   const procesando = useRef(false)
   const ultimoToken = useRef('')
   const ultimoEscaneo = useRef(0)
 
+  // Comprobar sesión
   useEffect(() => {
     let activo = true
 
@@ -78,6 +113,68 @@ export default function AdminScanner({
     }
   }, [])
 
+  // Cargar asistentes que realmente entraron al evento
+  useEffect(() => {
+    if (!session) {
+      setAsistentes([])
+      return
+    }
+
+    let activo = true
+
+    async function cargarAsistentes() {
+      setCargandoAsistentes(true)
+      setErrorAsistentes('')
+
+      try {
+        // Buscar el evento
+        const { data: evento, error: errorEvento } = await supabase
+          .from('events')
+          .select('id')
+          .eq('name', 'Modela tu barrio')
+          .limit(1)
+          .maybeSingle()
+
+        if (errorEvento) throw errorEvento
+
+        if (!evento) {
+          throw new Error('No se encontró el evento Modela tu barrio.')
+        }
+
+        // Obtener exclusivamente participantes con entrada confirmada
+        const { data, error } = await supabase
+          .from('attendees')
+          .select('full_name, organization, checked_in_at')
+          .eq('event_id', evento.id)
+          .not('checked_in_at', 'is', null)
+          .order('checked_in_at', { ascending: true })
+
+        if (error) throw error
+
+        if (activo) {
+          setAsistentes((data ?? []) as Asistente[])
+        }
+      } catch (error) {
+        if (activo) {
+          setErrorAsistentes(
+            error instanceof Error
+              ? error.message
+              : 'No se pudieron cargar los asistentes.',
+          )
+        }
+      } finally {
+        if (activo) setCargandoAsistentes(false)
+      }
+    }
+
+    void cargarAsistentes()
+
+    return () => {
+      activo = false
+    }
+  }, [session, actualizacionAsistentes])
+
+  // Escáner QR
   useEffect(() => {
     if (!session || !escaneando) return
 
@@ -142,6 +239,10 @@ export default function AdminScanner({
                 entry_time: detalle.entry_time ?? null,
               })
 
+              if (detalle.outcome === 'authorized') {
+                setActualizacionAsistentes(v => v + 1)
+              }
+
               setMensaje('')
               return
             }
@@ -164,7 +265,14 @@ export default function AdminScanner({
           throw new Error(data.error)
         }
 
-        setResultado(data as CheckInResult)
+        const resultadoValidacion = data as CheckInResult
+
+        setResultado(resultadoValidacion)
+
+        if (resultadoValidacion.outcome === 'authorized') {
+          setActualizacionAsistentes(v => v + 1)
+        }
+
         setMensaje('')
       } catch (error) {
         setMensaje(
@@ -222,6 +330,7 @@ export default function AdminScanner({
     setEscaneando(false)
     setResultado(null)
     setMensaje('')
+    setVista('scanner')
 
     const { error } = await supabase.auth.signOut()
 
@@ -244,6 +353,71 @@ export default function AdminScanner({
     setResultado(null)
     setMensaje('Escáner detenido.')
   }
+
+  function mostrarAsistentes() {
+    setEscaneando(false)
+    setVista('asistentes')
+    setBusqueda('')
+    setMensaje('')
+    setActualizacionAsistentes(v => v + 1)
+  }
+
+  function exportarExcel() {
+    if (asistentes.length === 0) {
+      setErrorAsistentes('No hay asistentes para exportar.')
+      return
+    }
+
+    const filas = asistentes.map((asistente, indice) => [
+      indice + 1,
+      asistente.full_name,
+      asistente.organization || 'No especificada',
+      mostrarFecha(asistente.checked_in_at),
+      mostrarHora(asistente.checked_in_at),
+    ])
+
+    const contenido = [
+      ['Posición', 'Nombre completo', 'Institución', 'Fecha de entrada', 'Hora de entrada'],
+      ...filas,
+    ]
+
+    const hoja = XLSX.utils.aoa_to_sheet(contenido)
+
+    hoja['!cols'] = [
+      { wch: 12 },
+      { wch: 32 },
+      { wch: 30 },
+      { wch: 20 },
+      { wch: 20 },
+    ]
+
+    const libro = XLSX.utils.book_new()
+
+    XLSX.utils.book_append_sheet(
+      libro,
+      hoja,
+      'Asistentes',
+    )
+
+    XLSX.writeFile(
+      libro,
+      'Asistentes_Modela_Tu_Barrio.xlsx',
+    )
+  }
+
+  const asistentesFiltrados = asistentes.filter(asistente => {
+    const texto = `${asistente.full_name} ${asistente.organization ?? ''}`
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+
+    const consulta = busqueda
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+
+    return texto.includes(consulta)
+  })
 
   if (cargando) {
     return (
@@ -269,7 +443,7 @@ export default function AdminScanner({
         <h1>Control de entradas</h1>
 
         <p className="admin-description">
-          Panel privado para verificar los códigos QR de los participantes.
+          Panel privado para verificar los códigos QR y consultar la asistencia.
         </p>
 
         {!session ? (
@@ -312,92 +486,204 @@ export default function AdminScanner({
               Sesión iniciada. El servidor verificará tus permisos.
             </p>
 
-            <p className="admin-description">
-              Identificador de este dispositivo:
-            </p>
-
-            <code className="admin-device-id">
-              {deviceId}
-            </code>
-
-            {!escaneando ? (
+            <div className="admin-tabs">
               <button
                 type="button"
-                className="admin-primary"
-                onClick={activarEscaner}
+                className={vista === 'scanner' ? 'admin-tab active' : 'admin-tab'}
+                onClick={() => {
+                  setEscaneando(false)
+                  setVista('scanner')
+                  setMensaje('')
+                }}
               >
-                Activar escáner QR
+                Escáner QR
               </button>
-            ) : (
-              <div className="admin-camera">
-                <p>
-                  Apunta la cámara al código QR del participante.
+
+              <button
+                type="button"
+                className={vista === 'asistentes' ? 'admin-tab active' : 'admin-tab'}
+                onClick={mostrarAsistentes}
+              >
+                Asistentes
+              </button>
+            </div>
+
+            {vista === 'scanner' ? (
+              <>
+                <p className="admin-description">
+                  Identificador de este dispositivo:
                 </p>
 
-                <div id="qr-reader" />
+                <code className="admin-device-id">
+                  {deviceId}
+                </code>
 
-                <button
-                  type="button"
-                  className="admin-secondary"
-                  onClick={detenerEscaner}
-                >
-                  Detener escáner
-                </button>
-              </div>
-            )}
-
-            {resultado && (
-              <section
-                className={
-                  resultado.outcome === 'authorized'
-                    ? 'admin-result admin-result-success'
-                    : 'admin-result admin-result-error'
-                }
-                aria-live="polite"
-              >
-                <h2>
-                  {tituloResultado(resultado.outcome)}
-                </h2>
-
-                <p>{resultado.message}</p>
-
-                {resultado.attendee_name && (
-                  <p>
-                    <strong>Participante:</strong>{' '}
-                    {resultado.attendee_name}
-                  </p>
-                )}
-
-                {resultado.entry_time && (
-                  <div className="admin-entry-datetime">
+                {!escaneando ? (
+                  <button
+                    type="button"
+                    className="admin-primary"
+                    onClick={activarEscaner}
+                  >
+                    Activar escáner QR
+                  </button>
+                ) : (
+                  <div className="admin-camera">
                     <p>
-                      <strong>Fecha de entrada:</strong>{' '}
-                      {new Date(resultado.entry_time).toLocaleDateString('es-DO', {
-                        timeZone: 'America/Santo_Domingo',
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                      })}
+                      Apunta la cámara al código QR del participante.
                     </p>
 
-                    <p>
-                      <strong>Hora de entrada:</strong>{' '}
-                      {new Date(resultado.entry_time).toLocaleTimeString('es-DO', {
-                        timeZone: 'America/Santo_Domingo',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: true,
-                      })}
-                    </p>
+                    <div id="qr-reader" />
+
+                    <button
+                      type="button"
+                      className="admin-secondary"
+                      onClick={detenerEscaner}
+                    >
+                      Detener escáner
+                    </button>
                   </div>
                 )}
 
-                {escaneando && (
-                  <p>
-                    El escáner está preparado para el siguiente participante.
+                {resultado && (
+                  <section
+                    className={
+                      resultado.outcome === 'authorized'
+                        ? 'admin-result admin-result-success'
+                        : 'admin-result admin-result-error'
+                    }
+                    aria-live="polite"
+                  >
+                    <h2>
+                      {tituloResultado(resultado.outcome)}
+                    </h2>
+
+                    <p>{resultado.message}</p>
+
+                    {resultado.attendee_name && (
+                      <p>
+                        <strong>Participante:</strong>{' '}
+                        {resultado.attendee_name}
+                      </p>
+                    )}
+
+                    {resultado.entry_time && (
+                      <div className="admin-entry-datetime">
+                        <p>
+                          <strong>Fecha de entrada:</strong>{' '}
+                          {mostrarFecha(resultado.entry_time)}
+                        </p>
+
+                        <p>
+                          <strong>Hora de entrada:</strong>{' '}
+                          {mostrarHora(resultado.entry_time)}
+                        </p>
+                      </div>
+                    )}
+
+                    {escaneando && (
+                      <p>
+                        El escáner está preparado para el siguiente participante.
+                      </p>
+                    )}
+                  </section>
+                )}
+              </>
+            ) : (
+              <section className="admin-attendance">
+                <div className="admin-attendance-heading">
+                  <div>
+                    <h2>Registro de asistentes</h2>
+                    <p>
+                      Participantes que tienen su entrada confirmada.
+                    </p>
+                  </div>
+
+                  <div className="admin-attendance-count">
+                    <strong>{asistentes.length}</strong>
+                    <span>Asistentes</span>
+                  </div>
+                </div>
+
+                <div className="admin-attendance-actions">
+                  <input
+                    type="search"
+                    placeholder="Buscar por nombre o institución..."
+                    value={busqueda}
+                    onChange={e => setBusqueda(e.target.value)}
+                    aria-label="Buscar asistentes"
+                  />
+
+                  <button
+                    type="button"
+                    className="admin-secondary"
+                    onClick={() => setActualizacionAsistentes(v => v + 1)}
+                    disabled={cargandoAsistentes}
+                  >
+                    {cargandoAsistentes ? 'Actualizando...' : 'Actualizar'}
+                  </button>
+                </div>
+
+                {errorAsistentes && (
+                  <p className="admin-message" role="alert">
+                    {errorAsistentes}
                   </p>
                 )}
+
+                {cargandoAsistentes ? (
+                  <p className="admin-attendance-empty">
+                    Cargando asistentes...
+                  </p>
+                ) : asistentes.length === 0 ? (
+                  <p className="admin-attendance-empty">
+                    Todavía no hay entradas confirmadas.
+                  </p>
+                ) : asistentesFiltrados.length === 0 ? (
+                  <p className="admin-attendance-empty">
+                    No se encontraron coincidencias.
+                  </p>
+                ) : (
+                  <div className="admin-attendance-list">
+                    {asistentesFiltrados.map(asistente => {
+                      const posicion = asistentes.indexOf(asistente) + 1
+
+                      return (
+                        <article
+                          className="admin-attendee"
+                          key={`${asistente.full_name}-${asistente.checked_in_at}`}
+                        >
+                          <span className="admin-attendee-position">
+                            {String(posicion).padStart(2, '0')}
+                          </span>
+
+                          <div className="admin-attendee-info">
+                            <strong>{asistente.full_name}</strong>
+                            <span>
+                              {asistente.organization || 'Institución no especificada'}
+                            </span>
+                          </div>
+
+                          <div className="admin-attendee-time">
+                            <strong>{mostrarHora(asistente.checked_in_at)}</strong>
+                            <span>{mostrarFecha(asistente.checked_in_at)}</span>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="admin-primary admin-export"
+                  onClick={exportarExcel}
+                  disabled={cargandoAsistentes || asistentes.length === 0}
+                >
+                  ↓ Descargar lista en Excel
+                </button>
+
+                <p className="admin-attendance-note">
+                  El orden corresponde a la hora de entrada registrada por el escáner QR.
+                </p>
               </section>
             )}
 
@@ -426,4 +712,5 @@ export default function AdminScanner({
     </main>
   )
 }
+
 

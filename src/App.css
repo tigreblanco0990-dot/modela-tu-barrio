@@ -529,3 +529,180 @@
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
 }
+
+/* ───── PANEL DE ASISTENTES ───── */
+
+.admin-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 25px 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.admin-tab {
+  flex: 1;
+  padding: 13px 10px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-tab.active {
+  color: #e8472a;
+  border-bottom-color: #e8472a;
+}
+
+.admin-attendance {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.admin-attendance-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 22px;
+}
+
+.admin-attendance-heading h2 {
+  margin-bottom: 6px;
+}
+
+.admin-attendance-heading p {
+  margin: 0;
+  opacity: 0.7;
+}
+
+.admin-attendance-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 85px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff0e9;
+  color: #e8472a;
+}
+
+.admin-attendance-count strong {
+  font-size: 28px;
+}
+
+.admin-attendance-count span {
+  font-size: 12px;
+}
+
+.admin-attendance-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.admin-attendance-actions input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.admin-attendance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-attendee {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-attendee-position {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #fff0e9;
+  color: #e8472a;
+  font-weight: 800;
+}
+
+.admin-attendee-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.admin-attendee-info strong {
+  overflow-wrap: anywhere;
+}
+
+.admin-attendee-info span,
+.admin-attendee-time span {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.admin-attendee-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  text-align: right;
+}
+
+.admin-attendance-empty {
+  padding: 25px 12px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.admin-export {
+  width: 100%;
+  margin-top: 22px;
+}
+
+.admin-attendance-note {
+  margin-top: 12px;
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.65;
+}
+
+@media (max-width: 520px) {
+  .admin-attendance-heading {
+    align-items: flex-start;
+  }
+
+  .admin-attendance-actions {
+    flex-direction: column;
+  }
+
+  .admin-attendee {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .admin-attendee-position {
+    min-width: 34px;
+    height: 34px;
+  }
+
+  .admin-attendee-time strong {
+    font-size: 12px;
+  }
+}
