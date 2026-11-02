@@ -78,7 +78,6 @@ export default function AdminScanner({
   const [mensaje, setMensaje] = useState('')
   const [resultado, setResultado] = useState<CheckInResult | null>(null)
 
-  // Estados del panel de asistentes
   const [vista, setVista] = useState<'scanner' | 'asistentes'>('scanner')
   const [asistentes, setAsistentes] = useState<Asistente[]>([])
   const [cargandoAsistentes, setCargandoAsistentes] = useState(false)
@@ -90,7 +89,6 @@ export default function AdminScanner({
   const ultimoToken = useRef('')
   const ultimoEscaneo = useRef(0)
 
-  // Comprobar sesión
   useEffect(() => {
     let activo = true
 
@@ -113,7 +111,6 @@ export default function AdminScanner({
     }
   }, [])
 
-  // Cargar asistentes que realmente entraron al evento
   useEffect(() => {
     if (!session) {
       setAsistentes([])
@@ -127,7 +124,6 @@ export default function AdminScanner({
       setErrorAsistentes('')
 
       try {
-        // Buscar el evento
         const { data: evento, error: errorEvento } = await supabase
           .from('events')
           .select('id')
@@ -141,7 +137,6 @@ export default function AdminScanner({
           throw new Error('No se encontró el evento Modela tu barrio.')
         }
 
-        // Obtener exclusivamente participantes con entrada confirmada
         const { data, error } = await supabase
           .from('attendees')
           .select('full_name, organization, checked_in_at')
@@ -174,7 +169,6 @@ export default function AdminScanner({
     }
   }, [session, actualizacionAsistentes])
 
-  // Escáner QR
   useEffect(() => {
     if (!session || !escaneando) return
 
@@ -266,7 +260,6 @@ export default function AdminScanner({
         }
 
         const resultadoValidacion = data as CheckInResult
-
         setResultado(resultadoValidacion)
 
         if (resultadoValidacion.outcome === 'authorized') {
@@ -286,12 +279,10 @@ export default function AdminScanner({
     }
 
     scanner.render(
-      (textoLeido) => {
+      textoLeido => {
         void procesarQR(textoLeido)
       },
-      () => {
-        // Se ignoran los errores normales mientras se busca un QR.
-      },
+      () => {},
     )
 
     return () => {
@@ -364,7 +355,7 @@ export default function AdminScanner({
 
   function exportarExcel() {
     if (asistentes.length === 0) {
-      setErrorAsistentes('No hay asistentes para exportar.')
+      setErrorAsistentes('No hay invitados para exportar.')
       return
     }
 
@@ -396,12 +387,12 @@ export default function AdminScanner({
     XLSX.utils.book_append_sheet(
       libro,
       hoja,
-      'Asistentes',
+      'Registro de asistencia',
     )
 
     XLSX.writeFile(
       libro,
-      'Asistentes_Modela_Tu_Barrio.xlsx',
+      'Registro_de_Asistencia_Modela_Tu_Barrio.xlsx',
     )
   }
 
@@ -421,271 +412,84 @@ export default function AdminScanner({
 
   if (cargando) {
     return (
-      <main className="admin-page">
-        <p>Comprobando sesión...</p>
+      <main className="admin-page admin-loading">
+        <div className="admin-loading-card">
+          <span className="admin-spinner" />
+          <p>Comprobando sesión...</p>
+        </div>
       </main>
     )
   }
 
   return (
     <main className="admin-page">
-      <section className="admin-card">
+      <div className="admin-shell">
         <button
           type="button"
           className="admin-back"
           onClick={onVolver}
         >
-          ← Volver al evento
+          <span>←</span> Volver al evento
         </button>
 
-        <p className="admin-eyebrow">MODELA TU BARRIO</p>
-
-        <h1>Control de entradas</h1>
-
-        <p className="admin-description">
-          Panel privado para verificar los códigos QR y consultar la asistencia.
-        </p>
-
         {!session ? (
-          <form className="admin-form" onSubmit={iniciarSesion}>
-            <h2>Iniciar sesión</h2>
-
-            <label htmlFor="admin-email">
-              Correo del administrador
-            </label>
-
-            <input
-              id="admin-email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-
-            <label htmlFor="admin-password">
-              Contraseña
-            </label>
-
-            <input
-              id="admin-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-
-            <button type="submit" disabled={cargando}>
-              Entrar al panel
-            </button>
-          </form>
-        ) : (
-          <div className="admin-scanner-area">
-            <p className="admin-session">
-              Sesión iniciada. El servidor verificará tus permisos.
-            </p>
-
-            <div className="admin-tabs">
-              <button
-                type="button"
-                className={vista === 'scanner' ? 'admin-tab active' : 'admin-tab'}
-                onClick={() => {
-                  setEscaneando(false)
-                  setVista('scanner')
-                  setMensaje('')
-                }}
-              >
-                Escáner QR
-              </button>
-
-              <button
-                type="button"
-                className={vista === 'asistentes' ? 'admin-tab active' : 'admin-tab'}
-                onClick={mostrarAsistentes}
-              >
-                Asistentes
-              </button>
+          <section className="admin-login-card">
+            <div className="admin-login-brand">
+              <img
+                src="/logo-modela-tu-barrio.png"
+                alt="Modela tu barrio"
+                className="admin-logo admin-login-logo"
+              />
+              <span className="admin-brand-caption">
+                CENTRO DE CONTROL
+              </span>
             </div>
 
-            {vista === 'scanner' ? (
-              <>
-                <p className="admin-description">
-                  Identificador de este dispositivo:
-                </p>
+            <div className="admin-login-heading">
+              <span className="admin-kicker">ACCESO ADMINISTRATIVO</span>
+              <h1>Bienvenido de nuevo.</h1>
+              <p>
+                Accede al centro de control de Modela tu barrio
+                para gestionar el ingreso y la asistencia del evento.
+              </p>
+            </div>
 
-                <code className="admin-device-id">
-                  {deviceId}
-                </code>
+            <form className="admin-form" onSubmit={iniciarSesion}>
+              <div className="admin-field">
+                <label htmlFor="admin-email">Correo electrónico</label>
+                <input
+                  id="admin-email"
+                  type="email"
+                  autoComplete="username"
+                  placeholder="Ingresa tu correo"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                />
+              </div>
 
-                {!escaneando ? (
-                  <button
-                    type="button"
-                    className="admin-primary"
-                    onClick={activarEscaner}
-                  >
-                    Activar escáner QR
-                  </button>
-                ) : (
-                  <div className="admin-camera">
-                    <p>
-                      Apunta la cámara al código QR del participante.
-                    </p>
+              <div className="admin-field">
+                <label htmlFor="admin-password">Contraseña</label>
+                <input
+                  id="admin-password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Ingresa tu contraseña"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                />
+              </div>
 
-                    <div id="qr-reader" />
-
-                    <button
-                      type="button"
-                      className="admin-secondary"
-                      onClick={detenerEscaner}
-                    >
-                      Detener escáner
-                    </button>
-                  </div>
-                )}
-
-                {resultado && (
-                  <section
-                    className={
-                      resultado.outcome === 'authorized'
-                        ? 'admin-result admin-result-success'
-                        : 'admin-result admin-result-error'
-                    }
-                    aria-live="polite"
-                  >
-                    <h2>
-                      {tituloResultado(resultado.outcome)}
-                    </h2>
-
-                    <p>{resultado.message}</p>
-
-                    {resultado.attendee_name && (
-                      <p>
-                        <strong>Participante:</strong>{' '}
-                        {resultado.attendee_name}
-                      </p>
-                    )}
-
-                    {resultado.entry_time && (
-                      <div className="admin-entry-datetime">
-                        <p>
-                          <strong>Fecha de entrada:</strong>{' '}
-                          {mostrarFecha(resultado.entry_time)}
-                        </p>
-
-                        <p>
-                          <strong>Hora de entrada:</strong>{' '}
-                          {mostrarHora(resultado.entry_time)}
-                        </p>
-                      </div>
-                    )}
-
-                    {escaneando && (
-                      <p>
-                        El escáner está preparado para el siguiente participante.
-                      </p>
-                    )}
-                  </section>
-                )}
-              </>
-            ) : (
-              <section className="admin-attendance">
-                <div className="admin-attendance-heading">
-                  <div>
-                    <h2>Registro de asistentes</h2>
-                    <p>
-                      Participantes que tienen su entrada confirmada.
-                    </p>
-                  </div>
-
-                  <div className="admin-attendance-count">
-                    <strong>{asistentes.length}</strong>
-                    <span>Asistentes</span>
-                  </div>
-                </div>
-
-                <div className="admin-attendance-actions">
-                  <input
-                    type="search"
-                    placeholder="Buscar por nombre o institución..."
-                    value={busqueda}
-                    onChange={e => setBusqueda(e.target.value)}
-                    aria-label="Buscar asistentes"
-                  />
-
-                  <button
-                    type="button"
-                    className="admin-secondary"
-                    onClick={() => setActualizacionAsistentes(v => v + 1)}
-                    disabled={cargandoAsistentes}
-                  >
-                    {cargandoAsistentes ? 'Actualizando...' : 'Actualizar'}
-                  </button>
-                </div>
-
-                {errorAsistentes && (
-                  <p className="admin-message" role="alert">
-                    {errorAsistentes}
-                  </p>
-                )}
-
-                {cargandoAsistentes ? (
-                  <p className="admin-attendance-empty">
-                    Cargando asistentes...
-                  </p>
-                ) : asistentes.length === 0 ? (
-                  <p className="admin-attendance-empty">
-                    Todavía no hay entradas confirmadas.
-                  </p>
-                ) : asistentesFiltrados.length === 0 ? (
-                  <p className="admin-attendance-empty">
-                    No se encontraron coincidencias.
-                  </p>
-                ) : (
-                  <div className="admin-attendance-list">
-                    {asistentesFiltrados.map(asistente => {
-                      const posicion = asistentes.indexOf(asistente) + 1
-
-                      return (
-                        <article
-                          className="admin-attendee"
-                          key={`${asistente.full_name}-${asistente.checked_in_at}`}
-                        >
-                          <span className="admin-attendee-position">
-                            {String(posicion).padStart(2, '0')}
-                          </span>
-
-                          <div className="admin-attendee-info">
-                            <strong>{asistente.full_name}</strong>
-                            <span>
-                              {asistente.organization || 'Institución no especificada'}
-                            </span>
-                          </div>
-
-                          <div className="admin-attendee-time">
-                            <strong>{mostrarHora(asistente.checked_in_at)}</strong>
-                            <span>{mostrarFecha(asistente.checked_in_at)}</span>
-                          </div>
-                        </article>
-                      )
-                    })}
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  className="admin-primary admin-export"
-                  onClick={exportarExcel}
-                  disabled={cargandoAsistentes || asistentes.length === 0}
-                >
-                  ↓ Descargar lista en Excel
-                </button>
-
-                <p className="admin-attendance-note">
-                  El orden corresponde a la hora de entrada registrada por el escáner QR.
-                </p>
-              </section>
-            )}
+              <button
+                type="submit"
+                className="admin-primary admin-login-submit"
+                disabled={cargando}
+              >
+                {cargando ? 'Ingresando...' : 'Ingresar al panel'}
+                {!cargando && <span>↗</span>}
+              </button>
+            </form>
 
             {mensaje && (
               <p className="admin-message" role="status">
@@ -693,24 +497,328 @@ export default function AdminScanner({
               </p>
             )}
 
-            <button
-              type="button"
-              className="admin-secondary"
-              onClick={cerrarSesion}
-            >
-              Cerrar sesión
-            </button>
-          </div>
-        )}
+            <div className="admin-login-footer">
+              <span className="admin-security-dot" />
+              Acceso exclusivo para personal autorizado.
+            </div>
+          </section>
+        ) : (
+          <>
+            <header className="admin-header">
+              <div className="admin-header-brand">
+                <img
+                  src="/logo-modela-tu-barrio.png"
+                  alt="Modela tu barrio"
+                  className="admin-logo"
+                />
+                <div>
+                  <span className="admin-brand-caption">
+                    MODELA TU BARRIO
+                  </span>
+                  <span className="admin-header-subtitle">
+                    CENTRO DE CONTROL
+                  </span>
+                </div>
+              </div>
 
-        {!session && mensaje && (
-          <p className="admin-message" role="status">
-            {mensaje}
-          </p>
+              <div className="admin-header-status">
+                <span className="admin-status-dot" />
+                Panel privado
+              </div>
+            </header>
+
+            <section className="admin-dashboard">
+              <div className="admin-welcome">
+                <span className="admin-kicker">
+                  GESTIÓN DEL EVENTO
+                </span>
+                <h1>Panel administrativo</h1>
+                <p>
+                  Gestiona el acceso y consulta la actividad
+                  de Modela tu barrio.
+                </p>
+              </div>
+
+              <div className="admin-tabs">
+                <button
+                  type="button"
+                  className={
+                    vista === 'scanner'
+                      ? 'admin-tab active'
+                      : 'admin-tab'
+                  }
+                  onClick={() => {
+                    setEscaneando(false)
+                    setVista('scanner')
+                    setMensaje('')
+                    setResultado(null)
+                  }}
+                >
+                  <span className="admin-tab-icon">⌗</span>
+                  Control de acceso
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    vista === 'asistentes'
+                      ? 'admin-tab active'
+                      : 'admin-tab'
+                  }
+                  onClick={mostrarAsistentes}
+                >
+                  <span className="admin-tab-icon">♧</span>
+                  Registro de asistencia
+                </button>
+              </div>
+
+              {vista === 'scanner' ? (
+                <section className="admin-workspace">
+                  <div className="admin-section-heading">
+                    <div>
+                      <span className="admin-kicker">VALIDACIÓN DE ENTRADAS</span>
+                      <h2>Control de acceso</h2>
+                      <p>
+                        Escanea el código QR de cada participante
+                        para verificar su entrada.
+                      </p>
+                    </div>
+
+                    <div className="admin-status-label">
+                      <span className="admin-status-dot" />
+                      Sistema disponible
+                    </div>
+                  </div>
+
+                  <div className="admin-scanner-card">
+                    {!escaneando ? (
+                      <div className="admin-scanner-intro">
+                        <div className="admin-scan-icon">
+                          <span>⌗</span>
+                        </div>
+                        <h3>Listo para escanear</h3>
+                        <p>
+                          Activa la cámara para comenzar a validar
+                          los códigos QR de los invitados.
+                        </p>
+                        <button
+                          type="button"
+                          className="admin-primary"
+                          onClick={activarEscaner}
+                        >
+                          <span>⌗</span> Activar escáner QR
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="admin-camera">
+                        <div className="admin-camera-heading">
+                          <div>
+                            <h3>Escáner activo</h3>
+                            <p>Apunta la cámara al código QR del participante.</p>
+                          </div>
+                          <span className="admin-live-indicator">
+                            <span /> EN VIVO
+                          </span>
+                        </div>
+
+                        <div id="qr-reader" />
+
+                        <button
+                          type="button"
+                          className="admin-secondary"
+                          onClick={detenerEscaner}
+                        >
+                          Detener escáner
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="admin-device-info">
+                    <span className="admin-device-icon">⌘</span>
+                    <div>
+                      <strong>Identificador del dispositivo</strong>
+                      <code>{deviceId}</code>
+                    </div>
+                  </div>
+
+                  {resultado && (
+                    <section
+                      className={
+                        resultado.outcome === 'authorized'
+                          ? 'admin-result admin-result-success'
+                          : 'admin-result admin-result-error'
+                      }
+                      aria-live="polite"
+                    >
+                      <div className="admin-result-symbol">
+                        {resultado.outcome === 'authorized' ? '✓' : '!'}
+                      </div>
+                      <div className="admin-result-content">
+                        <h2>{tituloResultado(resultado.outcome)}</h2>
+                        <p>{resultado.message}</p>
+
+                        {resultado.attendee_name && (
+                          <p>
+                            <strong>Participante:</strong>{' '}
+                            {resultado.attendee_name}
+                          </p>
+                        )}
+
+                        {resultado.entry_time && (
+                          <div className="admin-entry-datetime">
+                            <p>
+                              <strong>Fecha:</strong>{' '}
+                              {mostrarFecha(resultado.entry_time)}
+                            </p>
+                            <p>
+                              <strong>Hora:</strong>{' '}
+                              {mostrarHora(resultado.entry_time)}
+                            </p>
+                          </div>
+                        )}
+
+                        {escaneando && (
+                          <p className="admin-result-hint">
+                            El escáner está preparado para el siguiente participante.
+                          </p>
+                        )}
+                      </div>
+                    </section>
+                  )}
+
+                  {mensaje && (
+                    <p className="admin-message" role="status">
+                      {mensaje}
+                    </p>
+                  )}
+                </section>
+              ) : (
+                <section className="admin-attendance">
+                  <div className="admin-attendance-heading">
+                    <div>
+                      <span className="admin-kicker">CONTROL DE PARTICIPACIÓN</span>
+                      <h2>Registro de asistencia</h2>
+                      <p>
+                        Invitados que tienen su entrada confirmada.
+                      </p>
+                    </div>
+
+                    <div className="admin-attendance-count">
+                      <strong>{asistentes.length}</strong>
+                      <span>
+                        {asistentes.length === 1 ? 'invitado' : 'invitados'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="admin-attendance-actions">
+                    <div className="admin-search">
+                      <span>⌕</span>
+                      <input
+                        type="search"
+                        placeholder="Buscar por nombre o institución..."
+                        value={busqueda}
+                        onChange={e => setBusqueda(e.target.value)}
+                        aria-label="Buscar invitados"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      className="admin-secondary admin-refresh"
+                      onClick={() => setActualizacionAsistentes(v => v + 1)}
+                      disabled={cargandoAsistentes}
+                    >
+                      ↻ {cargandoAsistentes ? 'Actualizando...' : 'Actualizar'}
+                    </button>
+                  </div>
+
+                  {errorAsistentes && (
+                    <p className="admin-message" role="alert">
+                      {errorAsistentes}
+                    </p>
+                  )}
+
+                  {cargandoAsistentes ? (
+                    <div className="admin-attendance-empty">
+                      <span className="admin-spinner" />
+                      <p>Cargando invitados...</p>
+                    </div>
+                  ) : asistentes.length === 0 ? (
+                    <div className="admin-attendance-empty">
+                      <span className="admin-empty-icon">♧</span>
+                      <strong>Aún no hay entradas confirmadas</strong>
+                      <p>Cuando se validen los primeros códigos QR, aparecerán aquí.</p>
+                    </div>
+                  ) : asistentesFiltrados.length === 0 ? (
+                    <div className="admin-attendance-empty">
+                      <strong>No encontramos coincidencias</strong>
+                      <p>Prueba con otro nombre o institución.</p>
+                    </div>
+                  ) : (
+                    <div className="admin-attendance-list">
+                      {asistentesFiltrados.map(asistente => {
+                        const posicion = asistentes.indexOf(asistente) + 1
+
+                        return (
+                          <article
+                            className="admin-attendee"
+                            key={`${asistente.full_name}-${asistente.checked_in_at}`}
+                          >
+                            <span className="admin-attendee-position">
+                              {String(posicion).padStart(2, '0')}
+                            </span>
+
+                            <div className="admin-attendee-info">
+                              <strong>{asistente.full_name}</strong>
+                              <span>
+                                {asistente.organization || 'Institución no especificada'}
+                              </span>
+                            </div>
+
+                            <div className="admin-attendee-time">
+                              <strong>{mostrarHora(asistente.checked_in_at)}</strong>
+                              <span>{mostrarFecha(asistente.checked_in_at)}</span>
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    className="admin-primary admin-export"
+                    onClick={exportarExcel}
+                    disabled={cargandoAsistentes || asistentes.length === 0}
+                  >
+                    ↓ Descargar lista en Excel
+                  </button>
+
+                  <p className="admin-attendance-note">
+                    El orden corresponde a la hora de entrada registrada por el escáner QR.
+                  </p>
+                </section>
+              )}
+
+              <footer className="admin-dashboard-footer">
+                <div>
+                  <span className="admin-security-dot" />
+                  Sesión administrativa activa
+                </div>
+                <button
+                  type="button"
+                  className="admin-logout"
+                  onClick={cerrarSesion}
+                >
+                  Cerrar sesión <span>↗</span>
+                </button>
+              </footer>
+            </section>
+          </>
         )}
-      </section>
+      </div>
     </main>
   )
 }
-
-
