@@ -48,6 +48,48 @@ type ResultadoAcceso = {
   mensaje: string
 }
 
+type DetalleError = {
+  status?: string
+  outcome?: string
+  success?: boolean
+  message?: string
+  error?: string
+  attendee_name?: string | null
+  entry_time?: string | null
+}
+
+// =====================================================
+// INTERPRETAR ERRORES DE SUPABASE
+// =====================================================
+
+async function obtenerDetalleError(
+  error: unknown,
+): Promise<DetalleError | null> {
+  const contexto = (
+    error as { context?: unknown } | null
+  )?.context
+
+  if (contexto instanceof Response) {
+    return await contexto
+      .clone()
+      .json()
+      .catch(() => null)
+  }
+
+  if (
+    contexto !== null &&
+    typeof contexto === 'object'
+  ) {
+    return contexto as DetalleError
+  }
+
+  return null
+}
+
+// =====================================================
+// IDENTIFICACIÓN DEL DISPOSITIVO
+// =====================================================
+
 function obtenerDeviceId(): string {
   const clave = 'mtb_device_id'
   let id = localStorage.getItem(clave)
@@ -72,7 +114,10 @@ function obtenerEtiquetaDispositivo(): string {
   return 'MTB - Otro dispositivo'
 }
 
-// Consultar autorización del dispositivo en Supabase.
+// =====================================================
+// CONSULTAR AUTORIZACIÓN DEL DISPOSITIVO
+// =====================================================
+
 async function consultarAccesoDispositivo(
   deviceId: string,
 ): Promise<ResultadoAcceso> {
@@ -89,13 +134,7 @@ async function consultarAccesoDispositivo(
     )
 
     if (error) {
-      const respuestaError = (
-        error as { context?: Response }
-      ).context
-
-      const detalle = respuestaError
-        ? await respuestaError.clone().json().catch(() => null)
-        : null
+      const detalle = await obtenerDetalleError(error)
 
       if (detalle?.status === 'unauthorized') {
         return {
@@ -109,7 +148,17 @@ async function consultarAccesoDispositivo(
         return {
           estado: 'revoked',
           mensaje:
-            detalle.message ?? 'El acceso de este dispositivo fue revocado.',
+            detalle.message ??
+            'El acceso de este dispositivo fue revocado.',
+        }
+      }
+
+      if (detalle?.status === 'pending') {
+        return {
+          estado: 'pending',
+          mensaje:
+            detalle.message ??
+            'Tu dispositivo está pendiente de aprobación.',
         }
       }
 
@@ -136,7 +185,11 @@ async function consultarAccesoDispositivo(
       'unauthorized',
     ]
 
-    if (!estadosPermitidos.includes(data.status as EstadoDispositivo)) {
+    if (
+      !estadosPermitidos.includes(
+        data.status as EstadoDispositivo,
+      )
+    ) {
       return {
         estado: 'error',
         mensaje: 'No se pudo determinar el estado del dispositivo.',
@@ -145,7 +198,8 @@ async function consultarAccesoDispositivo(
 
     return {
       estado: data.status as EstadoDispositivo,
-      mensaje: data.message ?? 'Estado del dispositivo actualizado.',
+      mensaje:
+        data.message ?? 'Estado del dispositivo actualizado.',
     }
   } catch (error) {
     return {
@@ -157,6 +211,10 @@ async function consultarAccesoDispositivo(
     }
   }
 }
+
+// =====================================================
+// FUNCIONES DE FECHA Y RESULTADOS
+// =====================================================
 
 function tituloResultado(outcome: string): string {
   const titulos: Record<string, string> = {
@@ -190,6 +248,10 @@ function mostrarHora(fecha: string): string {
   })
 }
 
+// =====================================================
+// COMPONENTE PRINCIPAL
+// =====================================================
+
 export default function AdminScanner({
   onVolver,
 }: {
@@ -203,28 +265,43 @@ export default function AdminScanner({
   const [cargando, setCargando] = useState(true)
   const [escaneando, setEscaneando] = useState(false)
   const [mensaje, setMensaje] = useState('')
-  const [resultado, setResultado] = useState<CheckInResult | null>(null)
+  const [resultado, setResultado] =
+    useState<CheckInResult | null>(null)
 
-  // Estado de autorización del dispositivo.
   const [deviceAccess, setDeviceAccess] =
     useState<EstadoDispositivo | null>(null)
 
-  const [deviceAccessMessage, setDeviceAccessMessage] = useState('')
-  const [comprobandoAcceso, setComprobandoAcceso] = useState(false)
+  const [deviceAccessMessage, setDeviceAccessMessage] =
+    useState('')
+
+  const [comprobandoAcceso, setComprobandoAcceso] =
+    useState(false)
 
   const [vista, setVista] = useState<Vista>('scanner')
 
   const [asistentes, setAsistentes] = useState<Asistente[]>([])
-  const [cargandoAsistentes, setCargandoAsistentes] = useState(false)
+  const [cargandoAsistentes, setCargandoAsistentes] =
+    useState(false)
+
   const [errorAsistentes, setErrorAsistentes] = useState('')
   const [busqueda, setBusqueda] = useState('')
-  const [actualizacionAsistentes, setActualizacionAsistentes] = useState(0)
+  const [actualizacionAsistentes, setActualizacionAsistentes] =
+    useState(0)
 
-  const [dispositivos, setDispositivos] = useState<Dispositivo[]>([])
-  const [cargandoDispositivos, setCargandoDispositivos] = useState(false)
-  const [errorDispositivos, setErrorDispositivos] = useState('')
-  const [procesandoDispositivo, setProcesandoDispositivo] = useState('')
-  const [avisoDispositivo, setAvisoDispositivo] = useState('')
+  const [dispositivos, setDispositivos] =
+    useState<Dispositivo[]>([])
+
+  const [cargandoDispositivos, setCargandoDispositivos] =
+    useState(false)
+
+  const [errorDispositivos, setErrorDispositivos] =
+    useState('')
+
+  const [procesandoDispositivo, setProcesandoDispositivo] =
+    useState('')
+
+  const [avisoDispositivo, setAvisoDispositivo] =
+    useState('')
 
   const procesando = useRef(false)
   const ultimoToken = useRef('')
@@ -251,16 +328,17 @@ export default function AdminScanner({
       }
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, nuevaSesion) => {
-        setSession(nuevaSesion)
+    const { data: listener } =
+      supabase.auth.onAuthStateChange(
+        (_event, nuevaSesion) => {
+          setSession(nuevaSesion)
 
-        if (!nuevaSesion) {
-          setDeviceAccess(null)
-          setDeviceAccessMessage('')
-        }
-      },
-    )
+          if (!nuevaSesion) {
+            setDeviceAccess(null)
+            setDeviceAccessMessage('')
+          }
+        },
+      )
 
     return () => {
       activo = false
@@ -283,6 +361,7 @@ export default function AdminScanner({
 
     async function comprobar() {
       setDeviceAccess('checking')
+
       setDeviceAccessMessage(
         'Estamos verificando la autorización de este dispositivo.',
       )
@@ -303,18 +382,24 @@ export default function AdminScanner({
     }
   }, [session?.user.id, deviceId])
 
-  // Volver a comprobar manualmente la autorización.
+  // =====================================================
+  // VOLVER A COMPROBAR AUTORIZACIÓN
+  // =====================================================
+
   async function volverAComprobarAcceso() {
     setComprobandoAcceso(true)
     setDeviceAccess('checking')
     setDeviceAccessMessage('Comprobando autorización...')
 
-    const resultadoAcceso =
-      await consultarAccesoDispositivo(deviceId)
+    try {
+      const resultadoAcceso =
+        await consultarAccesoDispositivo(deviceId)
 
-    setDeviceAccess(resultadoAcceso.estado)
-    setDeviceAccessMessage(resultadoAcceso.mensaje)
-    setComprobandoAcceso(false)
+      setDeviceAccess(resultadoAcceso.estado)
+      setDeviceAccessMessage(resultadoAcceso.mensaje)
+    } finally {
+      setComprobandoAcceso(false)
+    }
   }
 
   // =====================================================
@@ -334,17 +419,20 @@ export default function AdminScanner({
       setErrorAsistentes('')
 
       try {
-        const { data: evento, error: errorEvento } = await supabase
-          .from('events')
-          .select('id')
-          .eq('name', 'Modela tu barrio')
-          .limit(1)
-          .maybeSingle()
+        const { data: evento, error: errorEvento } =
+          await supabase
+            .from('events')
+            .select('id')
+            .eq('name', 'Modela tu barrio')
+            .limit(1)
+            .maybeSingle()
 
         if (errorEvento) throw errorEvento
 
         if (!evento) {
-          throw new Error('No se encontró el evento Modela tu barrio.')
+          throw new Error(
+            'No se encontró el evento Modela tu barrio.',
+          )
         }
 
         const { data, error } = await supabase
@@ -397,12 +485,13 @@ export default function AdminScanner({
 
     async function cargarDispositivos() {
       try {
-        const { data, error } = await supabase.functions.invoke(
-          'manage-devices',
-          {
-            body: { action: 'list' },
-          },
-        )
+        const { data, error } =
+          await supabase.functions.invoke(
+            'manage-devices',
+            {
+              body: { action: 'list' },
+            },
+          )
 
         if (error) throw error
         if (data?.error) throw new Error(data.error)
@@ -441,6 +530,7 @@ export default function AdminScanner({
             setAvisoDispositivo(
               '¡Ha llegado una nueva solicitud de acceso!',
             )
+
             setCargandoDispositivos(true)
             void cargarDispositivos()
           }
@@ -512,49 +602,41 @@ export default function AdminScanner({
       setResultado(null)
 
       try {
-        const { data, error } = await supabase.functions.invoke(
-          'validate-entry',
-          {
-            body: {
-              token,
-              device_id: deviceId,
-              device_label: obtenerEtiquetaDispositivo(),
+        const { data, error } =
+          await supabase.functions.invoke(
+            'validate-entry',
+            {
+              body: {
+                token,
+                device_id: deviceId,
+                device_label: obtenerEtiquetaDispositivo(),
+              },
             },
-          },
-        )
+          )
 
         if (error) {
-          const respuestaError = (
-            error as { context?: Response }
-          ).context
+          const detalle = await obtenerDetalleError(error)
 
-          if (respuestaError) {
-            const detalle = await respuestaError
-              .clone()
-              .json()
-              .catch(() => null)
+          if (detalle && typeof detalle.outcome === 'string') {
+            setResultado({
+              success: detalle.success === true,
+              outcome: detalle.outcome,
+              message:
+                detalle.message ?? 'Resultado de la validación.',
+              attendee_name: detalle.attendee_name ?? null,
+              entry_time: detalle.entry_time ?? null,
+            })
 
-            if (detalle && typeof detalle.outcome === 'string') {
-              setResultado({
-                success: detalle.success === true,
-                outcome: detalle.outcome,
-                message:
-                  detalle.message ?? 'Resultado de la validación.',
-                attendee_name: detalle.attendee_name ?? null,
-                entry_time: detalle.entry_time ?? null,
-              })
-
-              if (detalle.outcome === 'authorized') {
-                setActualizacionAsistentes(v => v + 1)
-              }
-
-              setMensaje('')
-              return
+            if (detalle.outcome === 'authorized') {
+              setActualizacionAsistentes(v => v + 1)
             }
 
-            if (detalle && typeof detalle.error === 'string') {
-              throw new Error(detalle.error)
-            }
+            setMensaje('')
+            return
+          }
+
+          if (detalle && typeof detalle.error === 'string') {
+            throw new Error(detalle.error)
           }
 
           throw new Error(
@@ -563,7 +645,9 @@ export default function AdminScanner({
         }
 
         if (!data) {
-          throw new Error('El servidor no devolvió ningún resultado.')
+          throw new Error(
+            'El servidor no devolvió ningún resultado.',
+          )
         }
 
         if (data.error) {
@@ -571,6 +655,7 @@ export default function AdminScanner({
         }
 
         const resultadoValidacion = data as CheckInResult
+
         setResultado(resultadoValidacion)
 
         if (resultadoValidacion.outcome === 'authorized') {
@@ -606,21 +691,26 @@ export default function AdminScanner({
   // INICIAR SESIÓN
   // =====================================================
 
-  async function iniciarSesion(e: FormEvent<HTMLFormElement>) {
+  async function iniciarSesion(
+    e: FormEvent<HTMLFormElement>,
+  ) {
     e.preventDefault()
     setMensaje('')
     setCargando(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      })
+      const { error } =
+        await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        })
 
       if (error) throw error
 
       setPassword('')
-      setMensaje('Sesión iniciada. Comprobando dispositivo...')
+      setMensaje(
+        'Sesión iniciada. Comprobando dispositivo...',
+      )
     } catch (error) {
       setMensaje(
         error instanceof Error
@@ -645,7 +735,9 @@ export default function AdminScanner({
     const { error } = await supabase.auth.signOut()
 
     if (error) {
-      setMensaje('No se pudo cerrar la sesión. Inténtalo de nuevo.')
+      setMensaje(
+        'No se pudo cerrar la sesión. Inténtalo de nuevo.',
+      )
     }
   }
 
@@ -690,12 +782,13 @@ export default function AdminScanner({
     setAvisoDispositivo('')
 
     try {
-      const { data, error } = await supabase.functions.invoke(
-        'manage-devices',
-        {
-          body: { action: 'list' },
-        },
-      )
+      const { data, error } =
+        await supabase.functions.invoke(
+          'manage-devices',
+          {
+            body: { action: 'list' },
+          },
+        )
 
       if (error) throw error
       if (data?.error) throw new Error(data.error)
@@ -733,18 +826,21 @@ export default function AdminScanner({
     setAvisoDispositivo('')
 
     try {
-      const { data, error } = await supabase.functions.invoke(
-        'manage-devices',
-        {
-          body: { action, id },
-        },
-      )
+      const { data, error } =
+        await supabase.functions.invoke(
+          'manage-devices',
+          {
+            body: { action, id },
+          },
+        )
 
       if (error) throw error
       if (data?.error) throw new Error(data.error)
 
       if (!data?.success) {
-        throw new Error('No se pudo completar la operación.')
+        throw new Error(
+          'No se pudo completar la operación.',
+        )
       }
 
       setAvisoDispositivo(data.message)
@@ -766,7 +862,9 @@ export default function AdminScanner({
 
   function exportarExcel() {
     if (asistentes.length === 0) {
-      setErrorAsistentes('No hay invitados para exportar.')
+      setErrorAsistentes(
+        'No hay invitados para exportar.',
+      )
       return
     }
 
@@ -817,19 +915,22 @@ export default function AdminScanner({
   // FILTRAR ASISTENTES
   // =====================================================
 
-  const asistentesFiltrados = asistentes.filter(asistente => {
-    const texto = `${asistente.full_name} ${asistente.organization ?? ''}`
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
+  const asistentesFiltrados = asistentes.filter(
+    asistente => {
+      const texto =
+        `${asistente.full_name} ${asistente.organization ?? ''}`
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
 
-    const consulta = busqueda
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
+      const consulta = busqueda
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
 
-    return texto.includes(consulta)
-  })
+      return texto.includes(consulta)
+    },
+  )
 
   // =====================================================
   // PANTALLA DE CARGA INICIAL
@@ -891,7 +992,9 @@ export default function AdminScanner({
             {deviceAccess === 'checking' && (
               <div className="admin-attendance-empty">
                 <span className="admin-spinner" />
-                <p>Comprobando los permisos de este dispositivo...</p>
+                <p>
+                  Comprobando los permisos de este dispositivo...
+                </p>
               </div>
             )}
 
@@ -899,34 +1002,41 @@ export default function AdminScanner({
               <div className="admin-attendance-empty">
                 <span className="admin-empty-icon">⌘</span>
 
-                <strong>Tu solicitud está en revisión.</strong>
+                <strong>
+                  Tu solicitud está en revisión.
+                </strong>
 
                 <p>
-                  El responsable del sistema debe aprobar este
-                  dispositivo antes de que puedas utilizar el panel.
+                  El responsable del sistema debe aprobar
+                  este dispositivo antes de que puedas
+                  utilizar el panel.
                 </p>
 
                 <p>
-                  Cuando recibas la aprobación, pulsa el botón
-                  para comprobar nuevamente el acceso.
+                  Cuando recibas la aprobación, pulsa el
+                  botón para comprobar nuevamente el acceso.
                 </p>
               </div>
             )}
 
             {deviceAccess === 'revoked' && (
               <div className="admin-attendance-empty">
-                <strong>Este dispositivo ya no tiene autorización.</strong>
+                <strong>
+                  Este dispositivo ya no tiene autorización.
+                </strong>
 
                 <p>
-                  Contacta con el responsable del sistema si
-                  consideras que se trata de un error.
+                  Contacta con el responsable del sistema
+                  si consideras que se trata de un error.
                 </p>
               </div>
             )}
 
             {deviceAccess === 'unauthorized' && (
               <div className="admin-attendance-empty">
-                <strong>Tu cuenta no tiene permisos administrativos.</strong>
+                <strong>
+                  Tu cuenta no tiene permisos administrativos.
+                </strong>
 
                 <p>
                   Comprueba que estés utilizando una cuenta
@@ -937,10 +1047,13 @@ export default function AdminScanner({
 
             {deviceAccess === 'error' && (
               <div className="admin-attendance-empty">
-                <strong>No pudimos comprobar tu autorización.</strong>
+                <strong>
+                  No pudimos comprobar tu autorización.
+                </strong>
 
                 <p>
-                  Verifica tu conexión a internet e inténtalo nuevamente.
+                  Verifica tu conexión a internet e inténtalo
+                  nuevamente.
                 </p>
               </div>
             )}
@@ -950,7 +1063,9 @@ export default function AdminScanner({
               <button
                 type="button"
                 className="admin-primary admin-login-submit"
-                onClick={() => void volverAComprobarAcceso()}
+                onClick={() =>
+                  void volverAComprobarAcceso()
+                }
                 disabled={comprobandoAcceso}
               >
                 {comprobandoAcceso
@@ -1019,7 +1134,10 @@ export default function AdminScanner({
               </p>
             </div>
 
-            <form className="admin-form" onSubmit={iniciarSesion}>
+            <form
+              className="admin-form"
+              onSubmit={iniciarSesion}
+            >
               <div className="admin-field">
                 <label htmlFor="admin-email">
                   Correo electrónico
@@ -1037,7 +1155,9 @@ export default function AdminScanner({
               </div>
 
               <div className="admin-field">
-                <label htmlFor="admin-password">Contraseña</label>
+                <label htmlFor="admin-password">
+                  Contraseña
+                </label>
 
                 <input
                   id="admin-password"
@@ -1222,7 +1342,8 @@ export default function AdminScanner({
                             <h3>Escáner activo</h3>
 
                             <p>
-                              Apunta la cámara al código QR del participante.
+                              Apunta la cámara al código QR
+                              del participante.
                             </p>
                           </div>
 
@@ -1248,7 +1369,10 @@ export default function AdminScanner({
                     <span className="admin-device-icon">⌘</span>
 
                     <div>
-                      <strong>Identificador del dispositivo</strong>
+                      <strong>
+                        Identificador del dispositivo
+                      </strong>
+
                       <code>{deviceId}</code>
                     </div>
                   </div>
@@ -1263,11 +1387,15 @@ export default function AdminScanner({
                       aria-live="polite"
                     >
                       <div className="admin-result-symbol">
-                        {resultado.outcome === 'authorized' ? '✓' : '!'}
+                        {resultado.outcome === 'authorized'
+                          ? '✓'
+                          : '!'}
                       </div>
 
                       <div className="admin-result-content">
-                        <h2>{tituloResultado(resultado.outcome)}</h2>
+                        <h2>
+                          {tituloResultado(resultado.outcome)}
+                        </h2>
 
                         <p>{resultado.message}</p>
 
@@ -1294,7 +1422,8 @@ export default function AdminScanner({
 
                         {escaneando && (
                           <p className="admin-result-hint">
-                            El escáner está preparado para el siguiente participante.
+                            El escáner está preparado para el
+                            siguiente participante.
                           </p>
                         )}
                       </div>
@@ -1326,7 +1455,9 @@ export default function AdminScanner({
                       <strong>{asistentes.length}</strong>
 
                       <span>
-                        {asistentes.length === 1 ? 'invitado' : 'invitados'}
+                        {asistentes.length === 1
+                          ? 'invitado'
+                          : 'invitados'}
                       </span>
                     </div>
                   </div>
@@ -1339,7 +1470,9 @@ export default function AdminScanner({
                         type="search"
                         placeholder="Buscar por nombre o institución..."
                         value={busqueda}
-                        onChange={e => setBusqueda(e.target.value)}
+                        onChange={e =>
+                          setBusqueda(e.target.value)
+                        }
                         aria-label="Buscar invitados"
                       />
                     </div>
@@ -1347,10 +1480,15 @@ export default function AdminScanner({
                     <button
                       type="button"
                       className="admin-secondary admin-refresh"
-                      onClick={() => setActualizacionAsistentes(v => v + 1)}
+                      onClick={() =>
+                        setActualizacionAsistentes(v => v + 1)
+                      }
                       disabled={cargandoAsistentes}
                     >
-                      ↻ {cargandoAsistentes ? 'Actualizando...' : 'Actualizar'}
+                      ↻{' '}
+                      {cargandoAsistentes
+                        ? 'Actualizando...'
+                        : 'Actualizar'}
                     </button>
                   </div>
 
@@ -1369,7 +1507,9 @@ export default function AdminScanner({
                     <div className="admin-attendance-empty">
                       <span className="admin-empty-icon">♧</span>
 
-                      <strong>Aún no hay entradas confirmadas</strong>
+                      <strong>
+                        Aún no hay entradas confirmadas
+                      </strong>
 
                       <p>
                         Cuando se validen los primeros códigos QR,
@@ -1378,13 +1518,19 @@ export default function AdminScanner({
                     </div>
                   ) : asistentesFiltrados.length === 0 ? (
                     <div className="admin-attendance-empty">
-                      <strong>No encontramos coincidencias</strong>
-                      <p>Prueba con otro nombre o institución.</p>
+                      <strong>
+                        No encontramos coincidencias
+                      </strong>
+
+                      <p>
+                        Prueba con otro nombre o institución.
+                      </p>
                     </div>
                   ) : (
                     <div className="admin-attendance-list">
                       {asistentesFiltrados.map(asistente => {
-                        const posicion = asistentes.indexOf(asistente) + 1
+                        const posicion =
+                          asistentes.indexOf(asistente) + 1
 
                         return (
                           <article
@@ -1396,7 +1542,9 @@ export default function AdminScanner({
                             </span>
 
                             <div className="admin-attendee-info">
-                              <strong>{asistente.full_name}</strong>
+                              <strong>
+                                {asistente.full_name}
+                              </strong>
 
                               <span>
                                 {asistente.organization ||
@@ -1406,11 +1554,15 @@ export default function AdminScanner({
 
                             <div className="admin-attendee-time">
                               <strong>
-                                {mostrarHora(asistente.checked_in_at)}
+                                {mostrarHora(
+                                  asistente.checked_in_at,
+                                )}
                               </strong>
 
                               <span>
-                                {mostrarFecha(asistente.checked_in_at)}
+                                {mostrarFecha(
+                                  asistente.checked_in_at,
+                                )}
                               </span>
                             </div>
                           </article>
@@ -1424,15 +1576,16 @@ export default function AdminScanner({
                     className="admin-primary admin-export"
                     onClick={exportarExcel}
                     disabled={
-                      cargandoAsistentes || asistentes.length === 0
+                      cargandoAsistentes ||
+                      asistentes.length === 0
                     }
                   >
                     ↓ Descargar lista en Excel
                   </button>
 
                   <p className="admin-attendance-note">
-                    El orden corresponde a la hora de entrada registrada
-                    por el escáner QR.
+                    El orden corresponde a la hora de entrada
+                    registrada por el escáner QR.
                   </p>
                 </section>
               ) : (
@@ -1446,13 +1599,16 @@ export default function AdminScanner({
                       <h2>Solicitudes de acceso</h2>
 
                       <p>
-                        Administra los dispositivos autorizados para
-                        controlar las entradas del evento.
+                        Administra los dispositivos autorizados
+                        para controlar las entradas del evento.
                       </p>
                     </div>
 
                     <div className="admin-attendance-count">
-                      <strong>{solicitudesPendientes.length}</strong>
+                      <strong>
+                        {solicitudesPendientes.length}
+                      </strong>
+
                       <span>pendientes</span>
                     </div>
                   </div>
@@ -1463,7 +1619,9 @@ export default function AdminScanner({
 
                       <button
                         type="button"
-                        onClick={() => setAvisoDispositivo('')}
+                        onClick={() =>
+                          setAvisoDispositivo('')
+                        }
                         aria-label="Cerrar aviso"
                       >
                         ×
@@ -1484,9 +1642,14 @@ export default function AdminScanner({
                       type="button"
                       className="admin-secondary admin-refresh"
                       disabled={cargandoDispositivos}
-                      onClick={() => void actualizarDispositivos()}
+                      onClick={() =>
+                        void actualizarDispositivos()
+                      }
                     >
-                      ↻ {cargandoDispositivos ? 'Actualizando...' : 'Actualizar'}
+                      ↻{' '}
+                      {cargandoDispositivos
+                        ? 'Actualizando...'
+                        : 'Actualizar'}
                     </button>
                   </div>
 
@@ -1497,11 +1660,13 @@ export default function AdminScanner({
                     </div>
                   ) : dispositivos.length === 0 ? (
                     <div className="admin-attendance-empty">
-                      <strong>No hay dispositivos registrados</strong>
+                      <strong>
+                        No hay dispositivos registrados
+                      </strong>
 
                       <p>
-                        Cuando un administrador intente acceder desde
-                        un dispositivo nuevo, aparecerá aquí.
+                        Cuando un administrador intente acceder
+                        desde un dispositivo nuevo, aparecerá aquí.
                       </p>
                     </div>
                   ) : (
@@ -1525,14 +1690,20 @@ export default function AdminScanner({
                             </span>
 
                             <div className="admin-attendee-info">
-                              <strong>{dispositivo.device_label}</strong>
+                              <strong>
+                                {dispositivo.device_label}
+                              </strong>
 
                               <span>
                                 Solicitado el{' '}
-                                {mostrarFecha(dispositivo.created_at)}
+                                {mostrarFecha(
+                                  dispositivo.created_at,
+                                )}
                               </span>
 
-                              <code>{dispositivo.device_id}</code>
+                              <code>
+                                {dispositivo.device_id}
+                              </code>
 
                               <span>
                                 Último uso:{' '}
@@ -1553,7 +1724,8 @@ export default function AdminScanner({
                                     type="button"
                                     className="admin-device-approve"
                                     disabled={
-                                      procesandoDispositivo === dispositivo.id
+                                      procesandoDispositivo ===
+                                      dispositivo.id
                                     }
                                     onClick={() =>
                                       void gestionarDispositivo(
@@ -1562,7 +1734,8 @@ export default function AdminScanner({
                                       )
                                     }
                                   >
-                                    {procesandoDispositivo === dispositivo.id
+                                    {procesandoDispositivo ===
+                                    dispositivo.id
                                       ? 'Procesando...'
                                       : 'Aprobar'}
                                   </button>
@@ -1571,7 +1744,8 @@ export default function AdminScanner({
                                     type="button"
                                     className="admin-device-reject"
                                     disabled={
-                                      procesandoDispositivo === dispositivo.id
+                                      procesandoDispositivo ===
+                                      dispositivo.id
                                     }
                                     onClick={() =>
                                       void gestionarDispositivo(
@@ -1593,7 +1767,8 @@ export default function AdminScanner({
                                     type="button"
                                     className="admin-device-reject"
                                     disabled={
-                                      procesandoDispositivo === dispositivo.id
+                                      procesandoDispositivo ===
+                                      dispositivo.id
                                     }
                                     onClick={() =>
                                       void gestionarDispositivo(
@@ -1619,7 +1794,8 @@ export default function AdminScanner({
 
                   <p className="admin-attendance-note">
                     La autorización se comprueba en el servidor.
-                    Los dispositivos revocados no pueden utilizar el escáner.
+                    Los dispositivos revocados no pueden utilizar
+                    el escáner.
                   </p>
                 </section>
               )}
