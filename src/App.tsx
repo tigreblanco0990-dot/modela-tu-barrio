@@ -1,3 +1,4 @@
+
 import './App.css'
 import { supabase } from './lib/supabase'
 import { useEffect, useState, type FormEvent } from 'react'
@@ -6,10 +7,6 @@ import AdminScanner from './AdminScanner'
 
 /* ───────────── DATOS ───────────── */
 
-// FOTOS: guarda las imágenes en /public/equipo/. Cada persona puede tener
-// una o varias fotos; si hay 2 o más, la tarjeta las cambia cada pocos segundos.
-// Ejemplo: fotos: ['/equipo/carlos-salazar.jpg', '/equipo/carlos-salazar-2.jpg']
-// Si una foto no existe, se muestran las iniciales sobre un fondo de color.
 const equipo = [
   { nombre: 'Carlos Salazar', iniciales: 'CS', fotos: ['/equipo/carlos-salazar.jpg'] },
   { nombre: 'Luisanyer Navarro', iniciales: 'LN', fotos: ['/equipo/luisanyer-navarro.jpg'] },
@@ -51,7 +48,6 @@ function TarjetaEquipo({ persona, indice }: { persona: Persona; indice: number }
   const [fallidas, setFallidas] = useState<string[]>([])
 
   const buenas = persona.fotos.filter(f => !fallidas.includes(f))
-  // Sin fotos disponibles se rotan 3 fondos de color con las iniciales.
   const total = buenas.length === 0 ? 3 : buenas.length
 
   useEffect(() => {
@@ -103,6 +99,7 @@ function TarjetaEquipo({ persona, indice }: { persona: Persona; indice: number }
 function App() {
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
   const [organizacion, setOrganizacion] = useState('')
   const [mensaje, setMensaje] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -125,6 +122,7 @@ function App() {
       const { data, error } = await supabase.rpc('register_attendee', {
         p_full_name: nombre.trim(),
         p_email: email.trim(),
+        p_whatsapp: whatsapp.trim(),
         p_organization: organizacion.trim() || null,
       })
 
@@ -142,8 +140,40 @@ function App() {
         errorCorrectionLevel: 'M',
       })
 
+      // Mostrar el QR aunque el envío del correo falle.
       setQrImagen(imagen)
-      setMensaje('¡Tu inscripción se completó correctamente!')
+
+      // Enviar el mismo QR al correo registrado.
+      try {
+        const { data: respuestaCorreo, error: errorCorreo } =
+          await supabase.functions.invoke('send-registration-email', {
+            body: {
+              qrToken: registro.qr_token,
+              qrImage: imagen,
+            },
+          })
+
+        if (errorCorreo || !respuestaCorreo?.success) {
+          console.error(
+            'No se pudo enviar el correo:',
+            errorCorreo || respuestaCorreo,
+          )
+
+          setMensaje(
+            '¡Tu inscripción se completó correctamente! No pudimos enviar el QR por correo. Puedes descargarlo aquí.',
+          )
+        } else {
+          setMensaje(
+            '¡Tu inscripción se completó correctamente! También hemos enviado tu código QR al correo electrónico proporcionado.',
+          )
+        }
+      } catch (errorCorreo) {
+        console.error('Error al enviar el correo:', errorCorreo)
+
+        setMensaje(
+          '¡Tu inscripción se completó correctamente! No pudimos enviar el QR por correo. Puedes descargarlo aquí.',
+        )
+      }
     } catch (error) {
       const detalle = error instanceof Error
         ? error.message
@@ -270,6 +300,23 @@ function App() {
                 autoComplete="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
+                required
+                disabled={bloqueado}
+              />
+            </div>
+
+            <div className="campo">
+              <label htmlFor="whatsapp">
+                Número de teléfono (whatsapp) <span className="obligatorio" aria-hidden="true">*</span>
+              </label>
+              <input
+                id="whatsapp"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                placeholder="+1 809 000 0000"
+                value={whatsapp}
+                onChange={e => setWhatsapp(e.target.value)}
                 required
                 disabled={bloqueado}
               />
