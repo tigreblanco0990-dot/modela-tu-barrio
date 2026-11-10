@@ -276,6 +276,7 @@
   border-radius: 22px;
   overflow: hidden;
   background: #ffffff;
+  border: 2px solid var(--orange);
 }
 
 /* Se elimina el degradado oscuro de las tarjetas */
