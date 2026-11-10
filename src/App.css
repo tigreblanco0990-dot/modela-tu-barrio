@@ -1,3 +1,4 @@
+
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Fraunces:ital,opsz,wght@1,9..144,600&display=swap');
 
 :root {
@@ -274,15 +275,12 @@
   aspect-ratio: 3 / 4;
   border-radius: 22px;
   overflow: hidden;
-  background: var(--navy);
+  background: #ffffff;
 }
 
+/* Se elimina el degradado oscuro de las tarjetas */
 .tarjeta::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(to top, rgba(10, 32, 48, 0.85), transparent 45%);
+  content: none;
 }
 
 .lamina {
@@ -308,7 +306,7 @@
   place-items: center;
   font-weight: 800;
   font-size: clamp(2.5rem, 7vw, 5rem);
-  color: #fff;
+  color: var(--navy);
   letter-spacing: -0.02em;
 }
 
@@ -318,8 +316,8 @@
   left: clamp(12px, 1.8vw, 22px);
   right: 12px;
   bottom: clamp(12px, 1.8vw, 22px);
-  color: #fff;
-  font-weight: 600;
+  color: var(--orange);
+  font-weight: 800;
   font-size: clamp(0.95rem, 1.8vw, 1.35rem);
   line-height: 1.15;
 }
