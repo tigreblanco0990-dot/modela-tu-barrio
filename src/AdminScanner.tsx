@@ -22,6 +22,16 @@ type Asistente = {
   checked_in_at: string
 }
 
+type Inscripcion = {
+  id: string
+  full_name: string
+  email: string
+  organization: string | null
+  registered_at: string
+  is_active: boolean
+  checked_in_at: string | null
+}
+
 type Dispositivo = {
   id: string
   user_id: string
@@ -33,7 +43,7 @@ type Dispositivo = {
   revoked_at: string | null
 }
 
-type Vista = 'scanner' | 'asistentes' | 'dispositivos'
+type Vista = 'scanner' | 'inscripciones' | 'asistentes' | 'dispositivos'
 
 type EstadoDispositivo =
   | 'checking'
@@ -288,6 +298,13 @@ export default function AdminScanner({
   const [actualizacionAsistentes, setActualizacionAsistentes] =
     useState(0)
 
+  const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
+  const [cargandoInscripciones, setCargandoInscripciones] = useState(false)
+  const [errorInscripciones, setErrorInscripciones] = useState('')
+  const [busquedaInscripciones, setBusquedaInscripciones] = useState('')
+  const [actualizacionInscripciones, setActualizacionInscripciones] =
+    useState(0)
+
   const [dispositivos, setDispositivos] =
     useState<Dispositivo[]>([])
 
@@ -466,6 +483,82 @@ export default function AdminScanner({
       activo = false
     }
   }, [session, deviceAccess, actualizacionAsistentes])
+
+  // =====================================================
+  // CARGAR INSCRIPCIONES
+  // =====================================================
+
+  useEffect(() => {
+    if (!session || deviceAccess !== 'approved') {
+      setInscripciones([])
+      return
+    }
+
+    let activo = true
+
+    async function cargarInscripciones() {
+      setCargandoInscripciones(true)
+      setErrorInscripciones('')
+
+      try {
+        const { data: evento, error: errorEvento } = await supabase
+          .from('events')
+          .select('id')
+          .eq('name', 'Modela tu barrio')
+          .limit(1)
+          .maybeSingle()
+
+        if (errorEvento) throw errorEvento
+
+        if (!evento) {
+          throw new Error('No se encontró el evento Modela tu barrio.')
+        }
+
+        // Se consultan los registros por bloques para no limitar
+        // el listado a los primeros 1,000 participantes.
+        const todos: Inscripcion[] = []
+        const tamanoBloque = 1000
+        let inicio = 0
+
+        while (true) {
+          const { data, error } = await supabase
+            .from('attendees')
+            .select(
+              'id, full_name, email, organization, registered_at, is_active, checked_in_at',
+            )
+            .eq('event_id', evento.id)
+            .order('registered_at', { ascending: false })
+            .range(inicio, inicio + tamanoBloque - 1)
+
+          if (error) throw error
+
+          const bloque = (data ?? []) as Inscripcion[]
+          todos.push(...bloque)
+
+          if (bloque.length < tamanoBloque) break
+          inicio += tamanoBloque
+        }
+
+        if (activo) setInscripciones(todos)
+      } catch (error) {
+        if (activo) {
+          setErrorInscripciones(
+            error instanceof Error
+              ? error.message
+              : 'No se pudieron cargar las inscripciones.',
+          )
+        }
+      } finally {
+        if (activo) setCargandoInscripciones(false)
+      }
+    }
+
+    void cargarInscripciones()
+
+    return () => {
+      activo = false
+    }
+  }, [session, deviceAccess, actualizacionInscripciones])
 
   // =====================================================
   // CARGAR DISPOSITIVOS Y ESCUCHAR SOLICITUDES NUEVAS
@@ -773,6 +866,72 @@ export default function AdminScanner({
   }
 
   // =====================================================
+  // MOSTRAR INSCRIPCIONES
+  // =====================================================
+
+  function mostrarInscripciones() {
+    setEscaneando(false)
+    setVista('inscripciones')
+    setBusquedaInscripciones('')
+    setMensaje('')
+    setActualizacionInscripciones(v => v + 1)
+  }
+
+  // =====================================================
+  // EXPORTAR INSCRIPCIONES
+  // =====================================================
+
+  function exportarInscripcionesExcel() {
+    if (inscripciones.length === 0) {
+      setErrorInscripciones('No hay inscripciones para exportar.')
+      return
+    }
+
+    const filas = inscripciones.map((persona, indice) => [
+      indice + 1,
+      persona.full_name,
+      persona.email,
+      persona.organization || 'No especificada',
+      persona.registered_at
+        ? `${mostrarFecha(persona.registered_at)} ${mostrarHora(persona.registered_at)}`
+        : 'No disponible',
+      persona.is_active ? 'Activo' : 'Inactivo',
+      persona.checked_in_at ? 'Sí' : 'No',
+    ])
+
+    const contenido = [
+      [
+        'N.º',
+        'Nombre completo',
+        'Correo electrónico',
+        'Institución u organización',
+        'Fecha de inscripción',
+        'Estado',
+        'Asistió',
+      ],
+      ...filas,
+    ]
+
+    const hoja = XLSX.utils.aoa_to_sheet(contenido)
+    hoja['!cols'] = [
+      { wch: 8 },
+      { wch: 32 },
+      { wch: 36 },
+      { wch: 30 },
+      { wch: 24 },
+      { wch: 14 },
+      { wch: 12 },
+    ]
+
+    const libro = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(libro, hoja, 'Inscripciones')
+    XLSX.writeFile(
+      libro,
+      'Inscripciones_Modela_Tu_Barrio.xlsx',
+    )
+  }
+
+  // =====================================================
   // ACTUALIZAR DISPOSITIVOS
   // =====================================================
 
@@ -931,6 +1090,25 @@ export default function AdminScanner({
       return texto.includes(consulta)
     },
   )
+
+  // =====================================================
+  // FILTRAR INSCRIPCIONES
+  // =====================================================
+
+  const inscripcionesFiltradas = inscripciones.filter(persona => {
+    const texto =
+      `${persona.full_name} ${persona.email} ${persona.organization ?? ''}`
+        .normalize('NFD')
+        .replace(/[\\u0300-\\u036f]/g, '')
+        .toLowerCase()
+
+    const consulta = busquedaInscripciones
+      .normalize('NFD')
+      .replace(/[\\u0300-\\u036f]/g, '')
+      .toLowerCase()
+
+    return texto.includes(consulta)
+  })
 
   // =====================================================
   // PANTALLA DE CARGA INICIAL
@@ -1264,6 +1442,22 @@ export default function AdminScanner({
                   Registro de asistencia
                 </button>
 
+                <button
+                  type="button"
+                  className={
+                    vista === 'inscripciones'
+                      ? 'admin-tab active'
+                      : 'admin-tab'
+                  }
+                  onClick={mostrarInscripciones}
+                >
+                  <span className="admin-tab-icon">♙</span>
+                  Inscripciones
+                  <span className="admin-request-count">
+                    {inscripciones.length}
+                  </span>
+                </button>
+
                 {puedeGestionarDispositivos && (
                   <button
                     type="button"
@@ -1435,6 +1629,145 @@ export default function AdminScanner({
                       {mensaje}
                     </p>
                   )}
+                </section>
+              ) : vista === 'inscripciones' ? (
+                <section className="admin-attendance">
+                  <div className="admin-attendance-heading">
+                    <div>
+                      <span className="admin-kicker">
+                        BASE DE DATOS DEL EVENTO
+                      </span>
+                      <h2>Personas inscritas</h2>
+                      <p>
+                        Consulta los datos de todas las personas que completaron
+                        su inscripción en Modela tu barrio.
+                      </p>
+                    </div>
+
+                    <div className="admin-attendance-count">
+                      <strong>{inscripciones.length}</strong>
+                      <span>
+                        {inscripciones.length === 1
+                          ? 'persona registrada'
+                          : 'personas registradas'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="admin-attendance-actions">
+                    <div className="admin-search">
+                      <span>⌕</span>
+                      <input
+                        type="search"
+                        placeholder="Buscar por nombre, correo u organización..."
+                        value={busquedaInscripciones}
+                        onChange={e => setBusquedaInscripciones(e.target.value)}
+                        aria-label="Buscar inscripciones"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      className="admin-secondary admin-refresh"
+                      onClick={() =>
+                        setActualizacionInscripciones(v => v + 1)
+                      }
+                      disabled={cargandoInscripciones}
+                    >
+                      ↻{' '}
+                      {cargandoInscripciones ? 'Actualizando...' : 'Actualizar'}
+                    </button>
+                  </div>
+
+                  {errorInscripciones && (
+                    <p className="admin-message" role="alert">
+                      {errorInscripciones}
+                    </p>
+                  )}
+
+                  {cargandoInscripciones ? (
+                    <div className="admin-attendance-empty">
+                      <span className="admin-spinner" />
+                      <p>Cargando inscripciones...</p>
+                    </div>
+                  ) : inscripciones.length === 0 ? (
+                    <div className="admin-attendance-empty">
+                      <span className="admin-empty-icon">♙</span>
+                      <strong>Aún no hay personas inscritas</strong>
+                      <p>
+                        Cuando alguien complete el formulario de inscripción,
+                        sus datos aparecerán aquí.
+                      </p>
+                    </div>
+                  ) : inscripcionesFiltradas.length === 0 ? (
+                    <div className="admin-attendance-empty">
+                      <strong>No encontramos coincidencias</strong>
+                      <p>Prueba con otro nombre, correo u organización.</p>
+                    </div>
+                  ) : (
+                    <div className="admin-attendance-list">
+                      {inscripcionesFiltradas.map((persona, indice) => (
+                        <article
+                          className="admin-attendee"
+                          key={persona.id}
+                        >
+                          <span className="admin-attendee-position">
+                            {String(indice + 1).padStart(2, '0')}
+                          </span>
+
+                          <div className="admin-attendee-info">
+                            <strong>{persona.full_name}</strong>
+                            <span>{persona.email}</span>
+                            <span>
+                              {persona.organization ||
+                                'Institución no especificada'}
+                            </span>
+                            <span>
+                              Inscrito:{' '}
+                              {persona.registered_at
+                                ? `${mostrarFecha(persona.registered_at)} · ${mostrarHora(persona.registered_at)}`
+                                : 'Fecha no disponible'}
+                            </span>
+                          </div>
+
+                          <div className="admin-device-actions">
+                            <span
+                              className={
+                                persona.is_active
+                                  ? 'admin-device-status approved'
+                                  : 'admin-device-status revoked'
+                              }
+                            >
+                              {persona.is_active ? 'Activo' : 'Inactivo'}
+                            </span>
+                            <span
+                              className={
+                                persona.checked_in_at
+                                  ? 'admin-device-status approved'
+                                  : 'admin-device-status pending'
+                              }
+                            >
+                              {persona.checked_in_at ? 'Ingresó' : 'Pendiente'}
+                            </span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    className="admin-primary admin-export"
+                    onClick={exportarInscripcionesExcel}
+                    disabled={cargandoInscripciones || inscripciones.length === 0}
+                  >
+                    ↓ Descargar todas las inscripciones en Excel
+                  </button>
+
+                  <p className="admin-attendance-note">
+                    El contador incluye todas las inscripciones del evento,
+                    aunque las personas todavía no hayan ingresado.
+                  </p>
                 </section>
               ) : vista === 'asistentes' ? (
                 <section className="admin-attendance">
